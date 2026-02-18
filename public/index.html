@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Social Horaa</title>
+
+<style>
+body {
+  margin:0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg,#2b1d5f,#4e2a8e);
+  color:white;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  height:100vh;
+  padding:30px;
+  box-sizing:border-box;
+}
+
+.video-box {
+  width:25%;
+  height:80vh;
+  background: rgba(255,255,255,0.08);
+  border-radius:20px;
+  padding:15px;
+  backdrop-filter: blur(10px);
+  display:flex;
+  flex-direction:column;
+}
+
+video {
+  flex:1;
+  width:100%;
+  border-radius:15px;
+  object-fit:cover;
+  background:black;
+}
+
+.quiz-box {
+  width:40%;
+  background: rgba(255,255,255,0.08);
+  padding:30px;
+  border-radius:25px;
+  text-align:center;
+  backdrop-filter: blur(10px);
+}
+
+button {
+  width:100%;
+  padding:12px;
+  margin:10px 0;
+  background: linear-gradient(90deg,#6a5acd,#836fff);
+  color:white;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
+  font-size:16px;
+  transition:0.2s;
+}
+
+button:hover {
+  transform:scale(1.05);
+}
+
+.next-btn {
+  margin-top:20px;
+  background:linear-gradient(90deg,#ff416c,#ff4b2b);
+}
+</style>
+</head>
+
+<body>
+
+<div class="video-box">
+<h2>You</h2>
+<video id="localVideo" autoplay muted playsinline></video>
+</div>
+
+<div class="quiz-box">
+<h1>🏆 Social Horaa</h1>
+<p>What is the capital of Japan?</p>
+
+<button onclick="checkAnswer(0)">Tokyo</button>
+<button onclick="checkAnswer(1)">Seoul</button>
+<button onclick="checkAnswer(2)">Beijing</button>
+<button onclick="checkAnswer(3)">Bangkok</button>
+
+<button class="next-btn" onclick="nextMatch()">Next Stranger</button>
+
+<p id="result"></p>
+</div>
+
+<div class="video-box">
+<h2>Stranger</h2>
+<video id="remoteVideo" autoplay playsinline></video>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+const socket = io();
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const resultText = document.getElementById("result");
+
+let peer = null;
+let localStream = null;
+
+const config = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80?transport=tcp",
+        "turn:openrelay.metered.ca:443?transport=tcp"
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    }
+  ],
+  iceTransportPolicy: "all"
+};
+
+
+async function startCamera() {
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
+  localVideo.srcObject = localStream;
+}
+
+function createPeer() {
+  peer = new RTCPeerConnection(config);
+
+  localStream.getTracks().forEach(track => {
+    peer.addTrack(track, localStream);
+  });
+
+  peer.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  peer.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("signal", event.candidate);
+    }
+  };
+
+peer.oniceconnectionstatechange = () => {
+  console.log("ICE:", peer.iceConnectionState);
+
+  if (peer.iceConnectionState === "failed") {
+    peer.restartIce();
+  }
+};
+
+}
+
+socket.on("matched", async () => {
+  createPeer();
+
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
+  socket.emit("signal", offer);
+});
+
+socket.on("signal", async (data) => {
+
+  if (data.type === "offer") {
+    createPeer();
+
+    await peer.setRemoteDescription(new RTCSessionDescription(data));
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+    socket.emit("signal", answer);
+
+  } else if (data.type === "answer") {
+    await peer.setRemoteDescription(new RTCSessionDescription(data));
+  } else {
+    try {
+      await peer.addIceCandidate(new RTCIceCandidate(data));
+    } catch (err) {
+      console.log("ICE error:", err);
+    }
+  }
+});
+
+socket.on("partner-disconnected", () => {
+  resultText.innerText = "Stranger disconnected 😢";
+  remoteVideo.srcObject = null;
+
+  if (peer) {
+    peer.close();
+    peer = null;
+  }
+});
+
+function nextMatch() {
+
+  if (peer) {
+    peer.onicecandidate = null;
+    peer.ontrack = null;
+    peer.close();
+    peer = null;
+  }
+
+  remoteVideo.srcObject = null;
+  resultText.innerText = "";
+
+  socket.emit("next-stranger");
+}
+
+
+function checkAnswer(index) {
+  if (index === 0) {
+    resultText.innerText = "Correct! 🎉";
+  } else {
+    resultText.innerText = "Wrong Answer ❌";
+  }
+}
+
+startCamera();
+</script>
+
+</body>
+</html>
