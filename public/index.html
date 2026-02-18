@@ -158,18 +158,22 @@ peer.oniceconnectionstatechange = () => {
 
 }
 
-socket.on("matched", async () => {
+socket.on("matched", async (data) => {
   createPeer();
 
-  const offer = await peer.createOffer();
-  await peer.setLocalDescription(offer);
-  socket.emit("signal", offer);
+  if (data.initiator) {
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    socket.emit("signal", offer);
+  }
 });
+
 
 socket.on("signal", async (data) => {
 
   if (data.type === "offer") {
-    createPeer();
+
+    if (!peer) createPeer();
 
     await peer.setRemoteDescription(new RTCSessionDescription(data));
     const answer = await peer.createAnswer();
@@ -177,15 +181,22 @@ socket.on("signal", async (data) => {
     socket.emit("signal", answer);
 
   } else if (data.type === "answer") {
-    await peer.setRemoteDescription(new RTCSessionDescription(data));
+
+    if (peer.signalingState !== "stable") {
+      await peer.setRemoteDescription(new RTCSessionDescription(data));
+    }
+
   } else {
+
     try {
       await peer.addIceCandidate(new RTCIceCandidate(data));
     } catch (err) {
       console.log("ICE error:", err);
     }
+
   }
 });
+
 
 socket.on("partner-disconnected", () => {
   resultText.innerText = "Stranger disconnected 😢";

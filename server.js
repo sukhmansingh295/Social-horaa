@@ -15,16 +15,18 @@ const io = socketio(server, {
 let waitingQueue = [];
 
 function tryMatch() {
-  while (waitingQueue.length >= 2) {
-    const player1 = waitingQueue.shift();
-    const player2 = waitingQueue.shift();
+  if (waitingQueue.length >= 2) {
+  const player1 = waitingQueue.shift();
+  const player2 = waitingQueue.shift();
 
-    player1.partner = player2;
-    player2.partner = player1;
+  player1.partner = player2;
+  player2.partner = player1;
 
-    player1.emit("matched");
-    player2.emit("matched");
-  }
+  // player1 will create offer
+  player1.emit("matched", { initiator: true });
+  player2.emit("matched", { initiator: false });
+}
+
 }
 
 io.on("connection", (socket) => {
@@ -69,6 +71,9 @@ io.on("connection", (socket) => {
 
 });
 
-server.listen(3000, () => {
-  console.log("Social Horaa running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`Social Horaa running on port ${PORT}`);
 });
+
