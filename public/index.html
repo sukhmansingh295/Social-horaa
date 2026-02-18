@@ -1,70 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Social Horaa</title>
 
 <style>
 body {
-  margin:0;
+  margin: 0;
   font-family: Arial, sans-serif;
   background: linear-gradient(135deg,#2b1d5f,#4e2a8e);
-  color:white;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  height:100vh;
-  padding:30px;
-  box-sizing:border-box;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .video-box {
-  width:25%;
-  height:80vh;
+  width: 25%;
+  height: 75vh;
   background: rgba(255,255,255,0.08);
-  border-radius:20px;
-  padding:15px;
+  border-radius: 20px;
+  padding: 15px;
   backdrop-filter: blur(10px);
-  display:flex;
-  flex-direction:column;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-box h2 {
+  text-align: center;
+  margin-bottom: 10px;
 }
 
 video {
-  flex:1;
-  width:100%;
-  border-radius:15px;
-  object-fit:cover;
-  background:black;
+  flex: 1;
+  width: 100%;
+  border-radius: 15px;
+  object-fit: cover;
+  background: black;
 }
 
 .quiz-box {
-  width:40%;
+  width: 40%;
   background: rgba(255,255,255,0.08);
-  padding:30px;
-  border-radius:25px;
-  text-align:center;
+  padding: 25px;
+  border-radius: 25px;
+  text-align: center;
   backdrop-filter: blur(10px);
 }
 
 button {
-  width:100%;
-  padding:12px;
-  margin:10px 0;
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
   background: linear-gradient(90deg,#6a5acd,#836fff);
-  color:white;
-  border:none;
-  border-radius:12px;
-  cursor:pointer;
-  font-size:16px;
-  transition:0.2s;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: 0.2s;
 }
 
 button:hover {
-  transform:scale(1.05);
+  transform: scale(1.05);
 }
 
 .next-btn {
-  margin-top:20px;
-  background:linear-gradient(90deg,#ff416c,#ff4b2b);
+  margin-top: 15px;
+  background: linear-gradient(90deg,#ff416c,#ff4b2b);
+}
+
+@media (max-width: 768px) {
+
+  body {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  .video-box {
+    width: 100%;
+    height: 35vh;
+    margin-bottom: 15px;
+  }
+
+  .quiz-box {
+    width: 100%;
+    margin-bottom: 15px;
+  }
 }
 </style>
 </head>
@@ -95,8 +121,6 @@ button:hover {
 <video id="remoteVideo" autoplay playsinline></video>
 </div>
 
-
-
 <script src="/socket.io/socket.io.js"></script>
 
 <script>
@@ -109,10 +133,12 @@ const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const resultText = document.getElementById("result");
 
-let peer;
-let localStream;
+let peer = null;
+let localStream = null;
+let pendingCandidates = [];
 let makingOffer = false;
 let ignoreOffer = false;
+const polite = Math.random() > 0.5;
 
 const config = {
   iceServers: [
@@ -121,11 +147,16 @@ const config = {
 };
 
 async function startCamera() {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true
-  });
-  localVideo.srcObject = localStream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+    localVideo.srcObject = localStream;
+  } catch (err) {
+    alert("Camera permission required!");
+    console.log(err);
+  }
 }
 
 function createPeer() {
@@ -171,24 +202,40 @@ socket.on("signal", async (data) => {
       const offerCollision =
         makingOffer || peer.signalingState !== "stable";
 
-      ignoreOffer = offerCollision;
-
+      ignoreOffer = !polite && offerCollision;
       if (ignoreOffer) return;
 
       await peer.setRemoteDescription(data);
+
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
       socket.emit("signal", answer);
 
+      // Apply queued ICE
+      for (const candidate of pendingCandidates) {
+        await peer.addIceCandidate(candidate);
+      }
+      pendingCandidates = [];
+
     } else if (data.type === "answer") {
 
-      if (peer.signalingState !== "stable") {
-        await peer.setRemoteDescription(data);
+      await peer.setRemoteDescription(data);
+
+      // Apply queued ICE
+      for (const candidate of pendingCandidates) {
+        await peer.addIceCandidate(candidate);
       }
+      pendingCandidates = [];
 
     } else {
 
-      await peer.addIceCandidate(data);
+      const candidate = new RTCIceCandidate(data);
+
+      if (peer && peer.remoteDescription) {
+        await peer.addIceCandidate(candidate);
+      } else {
+        pendingCandidates.push(candidate);
+      }
 
     }
 
@@ -221,5 +268,7 @@ function checkAnswer(index) {
 
 startCamera();
 </script>
+
+
 </body>
 </html>
