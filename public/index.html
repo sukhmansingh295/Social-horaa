@@ -182,40 +182,38 @@ async function startCamera() {
     localVideo.srcObject = localStream;
   } catch (err) {
     alert("Camera permission required!");
-    console.log(err);
   }
 }
 
 function createPeer() {
 
+  peer = new RTCPeerConnection(config);
+
+  // ✅ ICE STATE LISTENER (Correct position)
   peer.oniceconnectionstatechange = () => {
 
-  console.log("ICE State:", peer.iceConnectionState);
+    console.log("ICE:", peer.iceConnectionState);
 
-  if (peer.iceConnectionState === "checking") {
-    statusText.innerText = "Establishing secure connection...";
-    loader.style.display = "block";
-  }
+    if (peer.iceConnectionState === "checking") {
+      statusText.innerText = "Establishing secure connection...";
+      loader.style.display = "block";
+    }
 
-  if (peer.iceConnectionState === "connected") {
-    statusText.innerText = "Connected 🎉";
-    loader.style.display = "none";
-  }
+    if (peer.iceConnectionState === "connected") {
+      statusText.innerText = "Connected 🎉";
+      loader.style.display = "none";
+    }
 
-  if (peer.iceConnectionState === "failed") {
-    statusText.innerText = "Connection Failed ❌";
-    loader.style.display = "none";
-  }
+    if (peer.iceConnectionState === "failed") {
+      statusText.innerText = "Connection Failed ❌";
+      loader.style.display = "none";
+    }
 
-  if (peer.iceConnectionState === "disconnected") {
-    statusText.innerText = "Stranger Disconnected 😢";
-    loader.style.display = "block";
-  }
-
-};
-
-
-  peer = new RTCPeerConnection(config);
+    if (peer.iceConnectionState === "disconnected") {
+      statusText.innerText = "Stranger Disconnected 😢";
+      loader.style.display = "block";
+    }
+  };
 
   localStream.getTracks().forEach(track => {
     peer.addTrack(track, localStream);
@@ -237,27 +235,26 @@ function createPeer() {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       socket.emit("signal", offer);
-    } catch (err) {
-      console.log("Offer error:", err);
     } finally {
       makingOffer = false;
     }
   };
 }
+
 socket.on("connect", () => {
   setSearching();
 });
 
 socket.on("matched", () => {
-  setConnected();
   createPeer();
 });
-
 
 socket.on("signal", async (data) => {
   try {
 
     if (data.type === "offer") {
+
+      if (!peer) createPeer();
 
       const offerCollision =
         makingOffer || peer.signalingState !== "stable";
@@ -271,21 +268,11 @@ socket.on("signal", async (data) => {
       await peer.setLocalDescription(answer);
       socket.emit("signal", answer);
 
-      // Apply queued ICE
-      for (const candidate of pendingCandidates) {
-        await peer.addIceCandidate(candidate);
-      }
-      pendingCandidates = [];
-
     } else if (data.type === "answer") {
 
-      await peer.setRemoteDescription(data);
-
-      // Apply queued ICE
-      for (const candidate of pendingCandidates) {
-        await peer.addIceCandidate(candidate);
+      if (peer.signalingState !== "stable") {
+        await peer.setRemoteDescription(data);
       }
-      pendingCandidates = [];
 
     } else {
 
@@ -296,7 +283,6 @@ socket.on("signal", async (data) => {
       } else {
         pendingCandidates.push(candidate);
       }
-
     }
 
   } catch (err) {
@@ -306,7 +292,6 @@ socket.on("signal", async (data) => {
 
 socket.on("partner-disconnected", () => {
   setDisconnected();
-  resultText.innerText = "Stranger disconnected 😢";
   remoteVideo.srcObject = null;
 
   if (peer) {
@@ -315,41 +300,36 @@ socket.on("partner-disconnected", () => {
   }
 });
 
-
 function nextMatch() {
   setSearching();
+
+  if (peer) {
+    peer.close();
+    peer = null;
+  }
+
+  remoteVideo.srcObject = null;
   socket.emit("next-stranger");
 }
 
-
 function checkAnswer(index) {
-  if (index === 0) {
-    resultText.innerText = "Correct! 🎉";
-  } else {
-    resultText.innerText = "Wrong Answer ❌";
-  }
+  resultText.innerText =
+    index === 0 ? "Correct! 🎉" : "Wrong Answer ❌";
 }
-
-startCamera();
-
 
 function setSearching() {
-  if (statusText) statusText.innerText = "Searching for stranger...";
-  if (loader) loader.style.display = "block";
-}
-
-function setConnected() {
-  if (statusText) statusText.innerText = "Connected 🎉";
-  if (loader) loader.style.display = "none";
+  statusText.innerText = "Searching for stranger...";
+  loader.style.display = "block";
 }
 
 function setDisconnected() {
-  if (statusText) statusText.innerText = "Stranger disconnected 😢";
-  if (loader) loader.style.display = "block";
+  statusText.innerText = "Stranger disconnected 😢";
+  loader.style.display = "block";
 }
 
-
+startCamera();
 </script>
+
 
 
 </body>
