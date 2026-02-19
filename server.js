@@ -12,33 +12,35 @@ const io = socketio(server, {
   cors: { origin: "*" }
 });
 
-let waitingUser = null;
+let waitingQueue = [];
+
+function tryMatch() {
+  if (waitingQueue.length >= 2) {
+    const player1 = waitingQueue.shift();
+    const player2 = waitingQueue.shift();
+
+    player1.partner = player2;
+    player2.partner = player1;
+
+    player1.emit("matched", { initiator: true });
+    player2.emit("matched", { initiator: false });
+  }
+}
 
 io.on("connection", (socket) => {
 
-  console.log("User connected:", socket.id);
-
-  socket.partner = null;
-
-  function tryMatch() {
-    if (waitingUser && waitingUser !== socket) {
-
-      socket.partner = waitingUser;
-      waitingUser.partner = socket;
-
-      socket.emit("matched");
-      waitingUser.emit("matched");
-
-      waitingUser = null;
-
-    } else {
-      waitingUser = socket;
-    }
-  }
-
+  waitingQueue.push(socket);
   tryMatch();
 
+  socket.on("signal", (data) => {
+    if (socket.partner) {
+      socket.partner.emit("signal", data);
+    }
+  });
+
   socket.on("next-stranger", () => {
+
+    waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
 
     if (socket.partner) {
       socket.partner.emit("partner-disconnected");
@@ -46,32 +48,22 @@ io.on("connection", (socket) => {
       socket.partner = null;
     }
 
+    waitingQueue.push(socket);
     tryMatch();
-  });
-
-  socket.on("signal", (data) => {
-    socket.partner?.emit("signal", data);
   });
 
   socket.on("disconnect", () => {
 
-    if (waitingUser === socket) {
-      waitingUser = null;
-    }
+    waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
 
     if (socket.partner) {
       socket.partner.emit("partner-disconnected");
       socket.partner.partner = null;
     }
-
   });
-
 });
-
 
 const PORT = process.env.PORT || 3000;
-
 server.listen(PORT, () => {
-  console.log(`Social Horaa running on port ${PORT}`);
+  console.log("Server running on port", PORT);
 });
-
