@@ -172,7 +172,12 @@ const config = {
     { urls: "stun:stun.l.google.com:19302" },
 
     {
-      urls: "turn:openrelay.metered.ca:80?transport=tcp",
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
       username: "openrelayproject",
       credential: "openrelayproject"
     },
@@ -184,6 +189,7 @@ const config = {
   ],
   iceTransportPolicy: "all"
 };
+
 
 
 
@@ -201,6 +207,7 @@ async function startCamera() {
 
 function createPeer() {
 
+  
   peer = new RTCPeerConnection(config);
 
   // ✅ ICE STATE LISTENER (Correct position)
@@ -259,9 +266,15 @@ socket.on("connect", () => {
   setSearching();
 });
 
-socket.on("matched", () => {
+socket.on("matched", async () => {
+
+  if (!localStream) {
+    await startCamera();
+  }
+
   createPeer();
 });
+
 
 socket.on("signal", async (data) => {
   try {
