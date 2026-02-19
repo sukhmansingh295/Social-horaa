@@ -98,9 +98,16 @@ button {
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
-
 <script>
-const socket = io({ transports:["websocket"] });
+
+const socket = io({
+  transports: ["websocket"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000
+});
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
@@ -109,130 +116,182 @@ const loader = document.getElementById("loader");
 
 let peer = null;
 let localStream = null;
-let pendingCandidates = [];
+let reconnecting = false;
 
 const config = {
   iceServers: [
-    { urls:"stun:stun.l.google.com:19302" },
+    { urls: "stun:stun.l.google.com:19302" },
     {
-      urls:[
+      urls: [
         "turn:openrelay.metered.ca:80?transport=tcp",
         "turn:openrelay.metered.ca:443?transport=tcp"
       ],
-      username:"openrelayproject",
-      credential:"openrelayproject"
+      username: "openrelayproject",
+      credential: "openrelayproject"
     }
   ]
 };
 
-async function startCamera(){
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video:true,
-    audio:true
-  });
-  localVideo.srcObject = localStream;
+async function startCamera() {
+  if (!localStream) {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+    localVideo.srcObject = localStream;
+  }
 }
 
-function createPeer(){
+function createPeer() {
+
   peer = new RTCPeerConnection(config);
 
-  localStream.getTracks().forEach(track=>{
-    peer.addTrack(track,localStream);
+  localStream.getTracks().forEach(track => {
+    peer.addTrack(track, localStream);
   });
 
-  peer.ontrack = e=>{
+  peer.ontrack = (e) => {
     remoteVideo.srcObject = e.streams[0];
   };
 
-  peer.onicecandidate = e=>{
-    if(e.candidate){
+  peer.onicecandidate = (e) => {
+    if (e.candidate) {
       socket.emit("signal", e.candidate);
     }
   };
 
-  peer.oniceconnectionstatechange = ()=>{
+  peer.oniceconnectionstatechange = () => {
+
     console.log("ICE:", peer.iceConnectionState);
 
-    if(peer.iceConnectionState==="checking"){
-      statusText.innerText="Connecting...";
-      loader.style.display="block";
+    if (peer.iceConnectionState === "checking") {
+      statusText.innerText = "Connecting...";
+      loader.style.display = "block";
     }
 
-    if(peer.iceConnectionState==="connected"){
-      statusText.innerText="Connected 🎉";
-      loader.style.display="none";
+    if (peer.iceConnectionState === "connected") {
+      statusText.innerText = "Connected 🎉";
+      loader.style.display = "none";
     }
 
-    if(peer.iceConnectionState==="failed"){
-      statusText.innerText="Connection Failed ❌";
-      loader.style.display="none";
+    if (peer.iceConnectionState === "failed") {
+      console.log("ICE Restarting...");
+      peer.restartIce();
+    }
+
+    if (peer.iceConnectionState === "disconnected") {
+      statusText.innerText = "Reconnecting...";
+      loader.style.display = "block";
+      safeReconnect();
     }
   };
 }
 
-socket.on("matched", async (data)=>{
-  if(!localStream){
-    await startCamera();
+function destroyPeer() {
+  if (peer) {
+    peer.ontrack = null;
+    peer.onicecandidate = null;
+    peer.close();
+    peer = null;
   }
+  remoteVideo.srcObject = null;
+}
 
+function safeReconnect() {
+
+  if (reconnecting) return;
+  reconnecting = true;
+
+  destroyPeer();
+
+  setTimeout(() => {
+    socket.emit("next-stranger");
+    reconnecting = false;
+  }, 1000);
+}
+
+/* ---------------- SOCKET EVENTS ---------------- */
+
+socket.on("connect", () => {
+  console.log("Socket connected:", socket.id);
+  statusText.innerText = "Searching...";
+  loader.style.display = "block";
+});
+
+socket.on("disconnect", () => {
+  console.log("Socket disconnected");
+  statusText.innerText = "Reconnecting to server...";
+  loader.style.display = "block";
+});
+
+socket.on("reconnect", () => {
+  console.log("Socket reconnected");
+  statusText.innerText = "Searching again...";
+  loader.style.display = "block";
+  socket.emit("next-stranger");
+});
+
+socket.on("matched", async (data) => {
+
+  await startCamera();
   createPeer();
 
-  if(data.initiator){
+  if (data.initiator) {
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
     socket.emit("signal", offer);
   }
 });
 
-socket.on("signal", async (data)=>{
-  try{
-    if(data.type==="offer"){
+socket.on("signal", async (data) => {
+  try {
+
+    if (!peer) createPeer();
+
+    if (data.type === "offer") {
+
       await peer.setRemoteDescription(new RTCSessionDescription(data));
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
       socket.emit("signal", answer);
-    }
-    else if(data.type==="answer"){
+
+    } else if (data.type === "answer") {
+
       await peer.setRemoteDescription(new RTCSessionDescription(data));
+
+    } else {
+
+      await peer.addIceCandidate(new RTCIceCandidate(data));
     }
-    else{
-      const candidate = new RTCIceCandidate(data);
-      if(peer.remoteDescription){
-        await peer.addIceCandidate(candidate);
-      }else{
-        pendingCandidates.push(candidate);
-      }
-    }
-  }catch(err){
-    console.log("Signal error:",err);
+
+  } catch (err) {
+    console.log("Signal error:", err);
   }
 });
 
-socket.on("partner-disconnected", ()=>{
-  statusText.innerText="Stranger disconnected";
-  loader.style.display="block";
-  remoteVideo.srcObject=null;
+socket.on("partner-disconnected", () => {
+  statusText.innerText = "Stranger left. Searching again...";
+  loader.style.display = "block";
+  destroyPeer();
 
-  if(peer){
-    peer.close();
-    peer=null;
-  }
+  setTimeout(() => {
+    socket.emit("next-stranger");
+  }, 1000);
 });
 
-function nextMatch(){
-  statusText.innerText="Searching...";
-  loader.style.display="block";
+/* ---------------- BUTTON ---------------- */
 
-  if(peer){
-    peer.close();
-    peer=null;
-  }
+function nextMatch() {
 
-  remoteVideo.srcObject=null;
+  statusText.innerText = "Searching...";
+  loader.style.display = "block";
+
+  destroyPeer();
   socket.emit("next-stranger");
 }
 
 startCamera();
+
 </script>
 
 </body>
