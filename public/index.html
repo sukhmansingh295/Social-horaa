@@ -279,6 +279,82 @@ socket.on("partner-disconnected", () => {
   }, 1000);
 });
 
+/* ---------------- QUIZ SYSTEM ---------------- */
+
+socket.on("quiz-question", (data) => {
+
+  answered = false;
+  timeLeft = 10;
+
+  document.getElementById("questionText").innerText = data.question;
+
+  data.options.forEach((opt, i) => {
+    const btn = document.getElementById("btn" + i);
+    btn.innerText = opt;
+    btn.disabled = false;
+    btn.style.background = "#6a5acd";
+  });
+
+  startTimer();
+});
+
+function startTimer() {
+
+  document.getElementById("timer").innerText = "Time: " + timeLeft;
+
+  clearInterval(timerInterval);
+
+  timerInterval = setInterval(() => {
+
+    timeLeft--;
+    document.getElementById("timer").innerText = "Time: " + timeLeft;
+
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      disableOptions();
+    }
+
+  }, 1000);
+}
+
+function sendAnswer(index) {
+
+  if (answered) return;
+
+  answered = true;
+
+  socket.emit("quiz-answer", index);
+
+  highlightSelected(index);
+  disableOptions();
+}
+
+function disableOptions() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById("btn" + i).disabled = true;
+  }
+}
+
+function highlightSelected(index) {
+  document.getElementById("btn" + index).style.background = "#00c853";
+}
+
+socket.on("quiz-score", (data) => {
+  document.getElementById("score").innerText =
+    "Your Score: " + data.score;
+});
+
+socket.on("quiz-end", (data) => {
+
+  clearInterval(timerInterval);
+
+  alert("🏆 Quiz Finished!\nYour Score: " + data.score);
+
+  socket.emit("next-stranger");
+});
+
+
+
 /* ---------------- BUTTON ---------------- */
 
 function nextMatch() {
