@@ -64,7 +64,6 @@ function tryMatch() {
     player1.emit("matched", { initiator: true });
     player2.emit("matched", { initiator: false });
 
-    startQuiz(player1, player2);
   }
 }
 
@@ -176,6 +175,26 @@ function startQuiz(p1, p2) {
 /* ---------------- SOCKET EVENTS ---------------- */
 
 io.on("connection", (socket) => {
+
+
+socket.ready = false;
+
+socket.on("player-ready", () => {
+
+  socket.ready = true;
+
+  const partner = socket.partner;
+
+  if (partner && partner.ready) {
+
+    socket.emit("both-ready");
+    partner.emit("both-ready");
+
+    startQuiz(socket, partner);
+  }
+});
+
+
 
   waitingQueue.push(socket);
   tryMatch();

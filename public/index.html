@@ -90,6 +90,15 @@ button {
 
 <p id="questionText">Waiting for question...</p>
 
+
+<button id="readyBtn" onclick="sendReady()" 
+style="background:#00c853;font-weight:bold;">
+READY
+</button>
+
+<p id="readyStatus"></p>
+
+
 <div id="options">
   <button id="btn0" onclick="sendAnswer(0)">Option 1</button>
   <button id="btn1" onclick="sendAnswer(1)">Option 2</button>
@@ -293,12 +302,17 @@ socket.on("partner-disconnected", () => {
   setTimeout(() => {
     socket.emit("next-stranger");
   }, 1000);
+
+  isReady = false;
+document.getElementById("readyBtn").disabled = false;
+document.getElementById("readyBtn").innerText = "READY";
+document.getElementById("readyBtn").style.display = "block";
+
+
 });
 
 /* ---------------- QUIZ SYSTEM ---------------- */
-
-/* ---------------- QUIZ SYSTEM ---------------- */
-
+let isReady = false;
 let timerInterval = null;
 let timeLeft = 10;
 let answered = false;
@@ -319,6 +333,19 @@ socket.on("quiz-question", (data) => {
 
   startTimer(data.duration);
 });
+
+function sendReady() {
+
+  if (isReady) return;
+
+  isReady = true;
+
+  document.getElementById("readyBtn").disabled = true;
+  document.getElementById("readyBtn").innerText = "Waiting for opponent...";
+  
+  socket.emit("player-ready");
+}
+
 
 function startTimer(duration) {
 
@@ -365,6 +392,20 @@ function disableOptions() {
 function highlightSelected(index) {
   document.getElementById("btn" + index).style.background = "#00c853";
 }
+
+
+socket.on("both-ready", () => {
+
+  document.getElementById("readyStatus").innerText =
+    "Both players ready! Quiz starting...";
+
+  setTimeout(() => {
+    document.getElementById("readyBtn").style.display = "none";
+  }, 1000);
+});
+
+
+
 
 socket.on("quiz-result", (data) => {
 
