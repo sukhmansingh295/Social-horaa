@@ -77,6 +77,11 @@ button {
 </style>
 </head>
 
+<audio id="startSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+<audio id="correctSound" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
+<audio id="wrongSound" src="https://assets.mixkit.co/active_storage/sfx/2220/2220-preview.mp3"></audio>
+<audio id="winSound" src="https://assets.mixkit.co/active_storage/sfx/2761/2761-preview.mp3"></audio>
+
 <body>
 
 <div class="video-box">
@@ -132,6 +137,17 @@ const socket = io({
   reconnectionDelayMax: 5000,
   timeout: 20000
 });
+
+
+/* ---------------- sound  ---------------- */
+const startSound = document.getElementById("startSound");
+const correctSound = document.getElementById("correctSound");
+const wrongSound = document.getElementById("wrongSound");
+const winSound = document.getElementById("winSound");
+
+
+
+
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
@@ -316,8 +332,11 @@ let isReady = false;
 let timerInterval = null;
 let timeLeft = 10;
 let answered = false;
+let selectedIndex = null;
 
 socket.on("quiz-question", (data) => {
+
+  startSound.play();
 
   answered = false;
   timeLeft = data.duration;
@@ -375,6 +394,7 @@ function sendAnswer(index) {
   if (answered) return;
 
   answered = true;
+  selectedIndex = index;
 
   highlightSelected(index);
 
@@ -382,6 +402,7 @@ function sendAnswer(index) {
 
   disableOptions();
 }
+
 
 function disableOptions() {
   for (let i = 0; i < 4; i++) {
@@ -410,7 +431,6 @@ socket.on("both-ready", () => {
 socket.on("quiz-result", (data) => {
 
   clearInterval(timerInterval);
-
   disableOptions();
 
   document.getElementById("btn" + data.correctAnswer)
@@ -418,9 +438,20 @@ socket.on("quiz-result", (data) => {
 
   document.getElementById("score").innerText =
     "Your Score: " + data.score;
+
+  if (answered && selectedIndex === data.correctAnswer) {
+    correctSound.play();
+  } else if (answered) {
+    wrongSound.play();
+  }
 });
 
+
 socket.on("quiz-end", (data) => {
+
+  if (data.winner === socket.id) {
+  winSound.play();
+}
 
   clearInterval(timerInterval);
 

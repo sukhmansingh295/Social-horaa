@@ -94,7 +94,7 @@ function startQuiz(p1, p2) {
       id: questionIndex,
       question: question.question,
       options: question.options,
-      duration: 10
+      duration: 20
     };
 
     p1.emit("quiz-question", payload);
@@ -145,7 +145,7 @@ function startQuiz(p1, p2) {
       setTimeout(sendQuestion, 3000);
     }
 
-    setTimeout(closeQuestion, 10000);
+    setTimeout(closeQuestion, 20000);
   }
 
   function finishQuiz() {
