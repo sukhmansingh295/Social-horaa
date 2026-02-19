@@ -133,6 +133,7 @@ let peer = null;
 let localStream = null;
 let reconnecting = false;
 
+
 const config = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -258,45 +259,6 @@ socket.on("matched", async (data) => {
   }
 });
 
-socket.on("quiz-result", (data) => {
-
-  clearInterval(timerInterval);
-
-  disableOptions();
-
-  document.getElementById("btn" + data.correctAnswer)
-    .style.background = "#00c853";
-
-  document.getElementById("score").innerText =
-    "Your Score: " + data.score;
-});
-
-socket.on("quiz-end", (data) => {
-
-  clearInterval(timerInterval);
-
-  let message;
-
-  if (!data.winner) {
-    message = "🤝 Draw!";
-  } else if (data.winner === socket.id) {
-    message = "🏆 You Win!";
-  } else {
-    message = "😢 You Lost!";
-  }
-
-  alert(
-    message +
-    "\nYour Score: " + data.yourScore +
-    "\nOpponent Score: " + data.opponentScore
-  );
-
-  socket.emit("next-stranger");
-});
-
-
-
-
 socket.on("signal", async (data) => {
   try {
 
@@ -335,6 +297,12 @@ socket.on("partner-disconnected", () => {
 
 /* ---------------- QUIZ SYSTEM ---------------- */
 
+/* ---------------- QUIZ SYSTEM ---------------- */
+
+let timerInterval = null;
+let timeLeft = 10;
+let answered = false;
+
 socket.on("quiz-question", (data) => {
 
   answered = false;
@@ -351,7 +319,6 @@ socket.on("quiz-question", (data) => {
 
   startTimer(data.duration);
 });
-
 
 function startTimer(duration) {
 
@@ -376,18 +343,18 @@ function startTimer(duration) {
   }, 1000);
 }
 
-
 function sendAnswer(index) {
 
   if (answered) return;
 
   answered = true;
 
+  highlightSelected(index);
+
   socket.emit("quiz-answer", index);
 
   disableOptions();
 }
-
 
 function disableOptions() {
   for (let i = 0; i < 4; i++) {
@@ -399,7 +366,15 @@ function highlightSelected(index) {
   document.getElementById("btn" + index).style.background = "#00c853";
 }
 
-socket.on("quiz-score", (data) => {
+socket.on("quiz-result", (data) => {
+
+  clearInterval(timerInterval);
+
+  disableOptions();
+
+  document.getElementById("btn" + data.correctAnswer)
+    .style.background = "#00c853";
+
   document.getElementById("score").innerText =
     "Your Score: " + data.score;
 });
@@ -408,11 +383,24 @@ socket.on("quiz-end", (data) => {
 
   clearInterval(timerInterval);
 
-  alert("🏆 Quiz Finished!\nYour Score: " + data.score);
+  let message;
+
+  if (!data.winner) {
+    message = "🤝 Draw!";
+  } else if (data.winner === socket.id) {
+    message = "🏆 You Win!";
+  } else {
+    message = "😢 You Lost!";
+  }
+
+  alert(
+    message +
+    "\nYour Score: " + data.yourScore +
+    "\nOpponent Score: " + data.opponentScore
+  );
 
   socket.emit("next-stranger");
 });
-
 
 
 /* ---------------- BUTTON ---------------- */
