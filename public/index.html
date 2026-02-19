@@ -258,6 +258,45 @@ socket.on("matched", async (data) => {
   }
 });
 
+socket.on("quiz-result", (data) => {
+
+  clearInterval(timerInterval);
+
+  disableOptions();
+
+  document.getElementById("btn" + data.correctAnswer)
+    .style.background = "#00c853";
+
+  document.getElementById("score").innerText =
+    "Your Score: " + data.score;
+});
+
+socket.on("quiz-end", (data) => {
+
+  clearInterval(timerInterval);
+
+  let message;
+
+  if (!data.winner) {
+    message = "🤝 Draw!";
+  } else if (data.winner === socket.id) {
+    message = "🏆 You Win!";
+  } else {
+    message = "😢 You Lost!";
+  }
+
+  alert(
+    message +
+    "\nYour Score: " + data.yourScore +
+    "\nOpponent Score: " + data.opponentScore
+  );
+
+  socket.emit("next-stranger");
+});
+
+
+
+
 socket.on("signal", async (data) => {
   try {
 
@@ -299,7 +338,7 @@ socket.on("partner-disconnected", () => {
 socket.on("quiz-question", (data) => {
 
   answered = false;
-  timeLeft = 10;
+  timeLeft = data.duration;
 
   document.getElementById("questionText").innerText = data.question;
 
@@ -310,19 +349,24 @@ socket.on("quiz-question", (data) => {
     btn.style.background = "#6a5acd";
   });
 
-  startTimer();
+  startTimer(data.duration);
 });
 
-function startTimer() {
 
-  document.getElementById("timer").innerText = "Time: " + timeLeft;
+function startTimer(duration) {
 
   clearInterval(timerInterval);
+  timeLeft = duration;
+
+  document.getElementById("timer").innerText =
+    "Time: " + timeLeft;
 
   timerInterval = setInterval(() => {
 
     timeLeft--;
-    document.getElementById("timer").innerText = "Time: " + timeLeft;
+
+    document.getElementById("timer").innerText =
+      "Time: " + timeLeft;
 
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
@@ -332,6 +376,7 @@ function startTimer() {
   }, 1000);
 }
 
+
 function sendAnswer(index) {
 
   if (answered) return;
@@ -340,9 +385,9 @@ function sendAnswer(index) {
 
   socket.emit("quiz-answer", index);
 
-  highlightSelected(index);
   disableOptions();
 }
+
 
 function disableOptions() {
   for (let i = 0; i < 4; i++) {
