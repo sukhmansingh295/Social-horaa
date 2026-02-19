@@ -165,7 +165,6 @@ let localStream = null;
 let pendingCandidates = [];
 let makingOffer = false;
 let ignoreOffer = false;
-const polite = Math.random() > 0.5;
 
 const config = {
   iceServers: [
@@ -244,30 +243,28 @@ function createPeer() {
     }
   };
 
-  peer.onnegotiationneeded = async () => {
-    try {
-      makingOffer = true;
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socket.emit("signal", offer);
-    } finally {
-      makingOffer = false;
-    }
-  };
+  
 }
 
 socket.on("connect", () => {
   setSearching();
 });
 
-socket.on("matched", async () => {
+socket.on("matched", async (data) => {
 
   if (!localStream) {
     await startCamera();
   }
 
   createPeer();
+
+  if (data.initiator) {
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    socket.emit("signal", offer);
+  }
 });
+
 
 
 socket.on("signal", async (data) => {

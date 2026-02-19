@@ -12,64 +12,62 @@ const io = socketio(server, {
   cors: { origin: "*" }
 });
 
-let waitingQueue = [];
-
-function tryMatch() {
-  if (waitingQueue.length >= 2) {
-  const player1 = waitingQueue.shift();
-  const player2 = waitingQueue.shift();
-
-  player1.partner = player2;
-  player2.partner = player1;
-
-  // player1 will create offer
-  player1.emit("matched", { initiator: true });
-  player2.emit("matched", { initiator: false });
-}
-
-}
+let waitingUser = null;
 
 io.on("connection", (socket) => {
 
   console.log("User connected:", socket.id);
 
-  waitingQueue.push(socket);
+  socket.partner = null;
+
+  function tryMatch() {
+    if (waitingUser && waitingUser !== socket) {
+
+      socket.partner = waitingUser;
+      waitingUser.partner = socket;
+
+      socket.emit("matched");
+      waitingUser.emit("matched");
+
+      waitingUser = null;
+
+    } else {
+      waitingUser = socket;
+    }
+  }
+
   tryMatch();
 
-  socket.on("signal", (data) => {
-    socket.partner?.emit("signal", data);
-  });
-
-  // 🔥 NEXT STRANGER LOGIC
   socket.on("next-stranger", () => {
 
-    // Remove from queue if waiting
-    waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
-
-    // Notify current partner
     if (socket.partner) {
       socket.partner.emit("partner-disconnected");
       socket.partner.partner = null;
       socket.partner = null;
     }
 
-    // Put back in queue
-    waitingQueue.push(socket);
     tryMatch();
   });
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+  socket.on("signal", (data) => {
+    socket.partner?.emit("signal", data);
+  });
 
-    waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
+  socket.on("disconnect", () => {
+
+    if (waitingUser === socket) {
+      waitingUser = null;
+    }
 
     if (socket.partner) {
       socket.partner.emit("partner-disconnected");
       socket.partner.partner = null;
     }
+
   });
 
 });
+l
 
 const PORT = process.env.PORT || 3000;
 
