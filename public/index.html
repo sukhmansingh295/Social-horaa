@@ -475,22 +475,25 @@ socket.on("quiz-result", (data) => {
 
   const correctIndex = data.correctIndex;
 
-  // Always highlight correct answer green
-  document.getElementById("btn" + correctIndex)
-    .style.background = "#00c853";
+  // Always highlight correct answer
+  const correctBtn = document.getElementById("btn" + correctIndex);
+  correctBtn.style.background = "#00c853";
+  correctBtn.style.boxShadow = "0 0 10px #00c853";
 
-  // If player answered
   if (answered) {
 
     if (selectedIndex === correctIndex) {
-      // Correct answer (stay green)
+
+      // Correct answer (keep green glow)
       correctSound.currentTime = 0;
       correctSound.play().catch(()=>{});
+
     } else {
-      // Wrong answer (turn red)
-      document.getElementById("btn" + selectedIndex)
-        btn.style.background = "#ff1744";
-        btn.style.boxShadow = "0 0 10px #ff1744";
+
+      // WRONG answer → turn your selected red
+      const wrongBtn = document.getElementById("btn" + selectedIndex);
+      wrongBtn.style.background = "#ff1744";
+      wrongBtn.style.boxShadow = "0 0 10px #ff1744";
 
       wrongSound.currentTime = 0;
       wrongSound.play().catch(()=>{});
