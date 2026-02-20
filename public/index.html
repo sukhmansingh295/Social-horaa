@@ -74,6 +74,17 @@ button {
   0%{transform:rotate(0deg);}
   100%{transform:rotate(360deg);}
 }
+
+
+button {
+  transition: all 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+} 
+
 </style>
 </head>
 
@@ -111,8 +122,14 @@ READY
   <button id="btn3" onclick="sendAnswer(3)">Option 4</button>
 </div>
 
-<p id="timer">Time: 10</p>
+<p id="timer">Time: 20</p>
+<div style="background:#444;height:8px;border-radius:5px;margin-top:10px;">
+  <div id="progressBar" 
+  style="height:8px;width:100%;background:#00c853;border-radius:5px;transition:width 0.2s linear;">
+  </div>
+</div>
 <p id="score">Your Score: 0</p>
+<p id="opponentStatus"></p>
 
 <h2>🏆 Social Horaa</h2>
 <p id="status">Searching for stranger...</p>
@@ -334,14 +351,22 @@ let timeLeft = 10;
 let answered = false;
 let selectedIndex = null;
 
+socket.on("opponent-answered", () => {
+  document.getElementById("opponentStatus").innerText =
+    "Opponent has answered!";
+});
+
+
+
 socket.on("quiz-question", (data) => {
-
-  startSound.play();
-
+  startSound.currentTime = 0;
+startSound.play().catch(()=>{});
   answered = false;
-  timeLeft = data.duration;
-
+  selectedIndex = null;
+document.getElementById("opponentStatus").innerText = "";
   document.getElementById("questionText").innerText = data.question;
+  answered = false;
+selectedIndex = null;
 
   data.options.forEach((opt, i) => {
     const btn = document.getElementById("btn" + i);
@@ -350,7 +375,7 @@ socket.on("quiz-question", (data) => {
     btn.style.background = "#6a5acd";
   });
 
-  startTimer(data.duration);
+  startSyncedTimer(data.endTime);
 });
 
 function sendReady() {
@@ -366,27 +391,38 @@ function sendReady() {
 }
 
 
-function startTimer(duration) {
+let currentDuration = 20000;
+
+function startSyncedTimer(endTime) {
 
   clearInterval(timerInterval);
-  timeLeft = duration;
 
-  document.getElementById("timer").innerText =
-    "Time: " + timeLeft;
+  currentDuration = endTime - Date.now();
 
-  timerInterval = setInterval(() => {
+  function updateTimer() {
 
-    timeLeft--;
+    const remainingMs = endTime - Date.now();
+    const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
 
     document.getElementById("timer").innerText =
-      "Time: " + timeLeft;
+      "Time: " + remaining;
 
-    if (timeLeft <= 0) {
+    const percentage = Math.max(
+      0,
+      (remainingMs / currentDuration) * 100
+    );
+
+    document.getElementById("progressBar").style.width =
+      percentage + "%";
+
+    if (remainingMs <= 0) {
       clearInterval(timerInterval);
       disableOptions();
     }
+  }
 
-  }, 1000);
+  updateTimer();
+  timerInterval = setInterval(updateTimer, 200);
 }
 
 function sendAnswer(index) {
@@ -433,24 +469,29 @@ socket.on("quiz-result", (data) => {
   clearInterval(timerInterval);
   disableOptions();
 
-  document.getElementById("btn" + data.correctAnswer)
+  document.getElementById("btn" + data.correctIndex)
     .style.background = "#00c853";
 
-  document.getElementById("score").innerText =
-    "Your Score: " + data.score;
-
-  if (answered && selectedIndex === data.correctAnswer) {
-    correctSound.play();
-  } else if (answered) {
-    wrongSound.play();
+  if (answered) {
+  if (selectedIndex === data.correctIndex) {
+    correctSound.currentTime = 0;
+    correctSound.play().catch(()=>{});
+  } else {
+    wrongSound.currentTime = 0;
+    wrongSound.play().catch(()=>{});
   }
+}
+
+  document.getElementById("score").innerText =
+    "Score: " + data.score;
 });
 
 
 socket.on("quiz-end", (data) => {
 
   if (data.winner === socket.id) {
-  winSound.play();
+  winSound.currentTime = 0;
+winSound.play().catch(()=>{});
 }
 
   clearInterval(timerInterval);
@@ -470,7 +511,10 @@ socket.on("quiz-end", (data) => {
     "\nYour Score: " + data.yourScore +
     "\nOpponent Score: " + data.opponentScore
   );
-
+isReady = false;
+document.getElementById("readyBtn").disabled = false;
+document.getElementById("readyBtn").innerText = "READY";
+document.getElementById("readyBtn").style.display = "block";
   socket.emit("next-stranger");
 });
 
