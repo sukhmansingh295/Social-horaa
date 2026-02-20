@@ -372,12 +372,18 @@ document.getElementById("opponentStatus").innerText = "";
   answered = false;
 selectedIndex = null;
 
-  data.options.forEach((opt, i) => {
-    const btn = document.getElementById("btn" + i);
-    btn.innerText = opt;
-    btn.disabled = false;
-    btn.style.background = "#6a5acd";
-  });
+ data.options.forEach((opt, i) => {
+
+  const btn = document.getElementById("btn" + i);
+
+  btn.innerText = opt;
+  btn.disabled = false;
+
+  // FULL RESET
+  btn.style.background = "#6a5acd";
+  btn.style.boxShadow = "none";
+  btn.style.transform = "scale(1)";
+});
 
   startSyncedTimer(data.endTime);
 });
