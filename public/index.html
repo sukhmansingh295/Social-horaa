@@ -85,6 +85,10 @@ button:disabled {
   cursor: not-allowed;
 } 
 
+#options button {
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+
 </style>
 </head>
 
@@ -469,18 +473,29 @@ socket.on("quiz-result", (data) => {
   clearInterval(timerInterval);
   disableOptions();
 
-  document.getElementById("btn" + data.correctIndex)
+  const correctIndex = data.correctIndex;
+
+  // Always highlight correct answer green
+  document.getElementById("btn" + correctIndex)
     .style.background = "#00c853";
 
+  // If player answered
   if (answered) {
-  if (selectedIndex === data.correctIndex) {
-    correctSound.currentTime = 0;
-    correctSound.play().catch(()=>{});
-  } else {
-    wrongSound.currentTime = 0;
-    wrongSound.play().catch(()=>{});
+
+    if (selectedIndex === correctIndex) {
+      // Correct answer (stay green)
+      correctSound.currentTime = 0;
+      correctSound.play().catch(()=>{});
+    } else {
+      // Wrong answer (turn red)
+      document.getElementById("btn" + selectedIndex)
+        btn.style.background = "#ff1744";
+        btn.style.boxShadow = "0 0 10px #ff1744";
+
+      wrongSound.currentTime = 0;
+      wrongSound.play().catch(()=>{});
+    }
   }
-}
 
   document.getElementById("score").innerText =
     "Score: " + data.score;
