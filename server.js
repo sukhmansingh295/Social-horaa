@@ -58,30 +58,17 @@ async function startQuiz(p1, p2) {
   p1.gameActive = true;
   p2.gameActive = true;
 
-  p1.ready = false;
-  p2.ready = false;
-
-  let questions;
-
-  try {
-    const response = await axios.get(
-      "https://opentdb.com/api.php?amount=7&type=multiple"
-    );
-    questions = response.data.results;
-  } catch (err) {
-    console.log("Quiz API failed. Using fallback.");
-    questions = fallbackQuestions;
-  }
-
   p1.score = 0;
   p2.score = 0;
 
+  const response = await axios.get(
+    "https://opentdb.com/api.php?amount=7&type=multiple"
+  );
+
+  const questions = response.data.results;
   let current = 0;
 
   function nextQuestion() {
-
-    if (!p1.partner || !p2.partner) return finishQuiz();
-    if (!p1.connected || !p2.connected) return finishQuiz();
 
     if (current >= questions.length) {
       finishQuiz();
@@ -89,62 +76,51 @@ async function startQuiz(p1, p2) {
     }
 
     const q = questions[current];
-
     const options = [...q.incorrect_answers, q.correct_answer];
-
-    // Proper shuffle
-    for (let i = options.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [options[i], options[j]] = [options[j], options[i]];
-    }
+    options.sort(() => Math.random() - 0.5);
 
     const correctIndex = options.indexOf(q.correct_answer);
 
     const QUESTION_TIME = 20000;
     const REVEAL_DELAY = 3000;
-    const endTime = Date.now() + QUESTION_TIME;
+
+    const startTime = Date.now();
+    const endTime = startTime + QUESTION_TIME;
 
     let answers = {};
 
     const payload = {
-      question: decodeHTML(q.question),
-      options: options.map(decodeHTML),
+      question: q.question,
+      options,
+      correctIndex,
+      startTime,
       endTime
     };
 
     p1.emit("quiz-question", payload);
     p2.emit("quiz-question", payload);
 
-    function handleAnswer(player, index) {
+    p1.once("quiz-answer", (index) => {
+      answers[p1.id] = index;
+      if (index === correctIndex) p1.score += 5;
+    });
 
-      if (!player.partner) return;
-      if (Date.now() > endTime) return;
-      if (answers[player.id] !== undefined) return;
-
-      answers[player.id] = index;
-
-      player.partner.emit("opponent-answered");
-
-      if (index === correctIndex) {
-        player.score += 5;
-      }
-    }
-
-    p1.once("quiz-answer", (i) => handleAnswer(p1, i));
-    p2.once("quiz-answer", (i) => handleAnswer(p2, i));
+    p2.once("quiz-answer", (index) => {
+      answers[p2.id] = index;
+      if (index === correctIndex) p2.score += 5;
+    });
 
     setTimeout(() => {
 
-      p1.removeAllListeners("quiz-answer");
-      p2.removeAllListeners("quiz-answer");
-
       p1.emit("quiz-result", {
         correctIndex,
+        yourAnswer: answers[p1.id] ?? null,
         score: p1.score
       });
 
       p2.emit("quiz-result", {
         correctIndex,
+        yourAnswer: answers[p2.id] ?? null,
         score: p2.score
       });
 
@@ -156,26 +132,29 @@ async function startQuiz(p1, p2) {
 
   function finishQuiz() {
 
-    p1.gameActive = false;
-    p2.gameActive = false;
+  p1.gameActive = false;
+  p2.gameActive = false;
 
-    let winner = null;
+  let winner = null;
 
-    if (p1.score > p2.score) winner = p1.id;
-    else if (p2.score > p1.score) winner = p2.id;
-
-    p1.emit("quiz-end", {
-      yourScore: p1.score,
-      opponentScore: p2.score,
-      winner
-    });
-
-    p2.emit("quiz-end", {
-      yourScore: p2.score,
-      opponentScore: p1.score,
-      winner
-    });
+  if (p1.score > p2.score) {
+    winner = p1.id;
+  } else if (p2.score > p1.score) {
+    winner = p2.id;
   }
+
+  p1.emit("quiz-end", {
+    yourScore: p1.score,
+    opponentScore: p2.score,
+    winner
+  });
+
+  p2.emit("quiz-end", {
+    yourScore: p2.score,
+    opponentScore: p1.score,
+    winner
+  });
+}
 
   nextQuestion();
 }
@@ -198,6 +177,18 @@ io.on("connection", (socket) => {
   socket.ready = false;
   socket.gameActive = false;
 
+
+  socket.on("quiz-cancel", () => {
+  socket.ready = false;
+  socket.gameActive = false;
+
+  if (socket.partner) {
+    socket.partner.ready = false;
+    socket.partner.gameActive = false;
+    socket.partner.emit("quiz-cancelled");
+  }
+});
+
   socket.on("player-ready", () => {
 
     if (!socket.partner) return;
@@ -212,6 +203,7 @@ io.on("connection", (socket) => {
 
       startQuiz(socket, partner);
     }
+
   });
 
   waitingQueue.push(socket);

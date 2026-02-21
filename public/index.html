@@ -1,562 +1,1228 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Social Horaa</title>
-
+<title>SocialHoraa — Random Video + Quiz</title>
+<script src="/socket.io/socket.io.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-body {
-  margin:0;
-  font-family: Arial;
-  background: linear-gradient(135deg,#2b1d5f,#4e2a8e);
-  color:white;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  min-height:100vh;
-  padding:20px;
-  box-sizing:border-box;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#07080c;
+  --s1:#0d0e14;
+  --s2:#13141c;
+  --s3:#1a1c26;
+  --border:#222536;
+  --border2:#2d3048;
+  --cyan:#00e5ff;
+  --pink:#ff2d78;
+  --lime:#a8ff3e;
+  --amber:#ffb830;
+  --text:#eeeef5;
+  --muted:#5c6080;
+  --muted2:#3c3f58;
 }
 
-.video-box {
-  width:25%;
-  height:70vh;
-  background:rgba(255,255,255,0.08);
-  border-radius:20px;
-  padding:15px;
-  display:flex;
-  flex-direction:column;
+html,body{height:100%;overflow:hidden}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Outfit',sans-serif;
 }
 
-video {
-  flex:1;
-  width:100%;
-  border-radius:15px;
-  object-fit:cover;
-  background:black;
+/* bg texture */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 20%,rgba(0,229,255,.04) 0%,transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 80%,rgba(255,45,120,.04) 0%,transparent 70%);
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px);
+  background-size:44px 44px;
 }
 
-.quiz-box {
-  width:40%;
-  background:rgba(255,255,255,0.08);
-  padding:25px;
-  border-radius:25px;
+/* ─────────────────────────────────
+   SCREENS
+───────────────────────────────── */
+.screen{
+  position:fixed;inset:0;z-index:5;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.screen.hidden{display:none}
+
+/* ─────────────────────────────────
+   LANDING
+───────────────────────────────── */
+#s-landing{gap:36px}
+
+.logo-mark{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(72px,12vw,130px);
+  line-height:.85;letter-spacing:3px;
+  background:linear-gradient(135deg,var(--cyan) 0%,var(--pink) 55%,var(--lime) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 60px rgba(0,229,255,.25));
+  animation:logoPulse 4s ease-in-out infinite;
+}
+@keyframes logoPulse{
+  0%,100%{filter:drop-shadow(0 0 60px rgba(0,229,255,.25))}
+  50%{filter:drop-shadow(0 0 80px rgba(255,45,120,.35))}
+}
+
+.tagline{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--muted);
+  letter-spacing:4px;text-transform:uppercase;
   text-align:center;
 }
 
-button {
-  width:100%;
-  padding:12px;
-  margin:8px 0;
-  background:#6a5acd;
-  color:white;
-  border:none;
-  border-radius:12px;
-  cursor:pointer;
+.start-btn{
+  padding:18px 60px;
+  background:linear-gradient(135deg,var(--cyan),#0090cc);
+  color:#000;font-family:'Outfit',sans-serif;
+  font-weight:700;font-size:17px;
+  border:none;border-radius:14px;cursor:pointer;
+  letter-spacing:.5px;
+  box-shadow:0 8px 40px rgba(0,229,255,.35);
+  transition:all .2s;position:relative;overflow:hidden;
 }
-
-.next-btn {
-  background:#ff416c;
+.start-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.2) 0%,transparent 100%);
 }
+.start-btn:hover{
+  transform:translateY(-3px);
+  box-shadow:0 14px 50px rgba(0,229,255,.5);
+}
+.start-btn:active{transform:scale(.97)}
 
-.spinner {
-  width:40px;
-  height:40px;
-  border:4px solid rgba(255,255,255,0.3);
-  border-top:4px solid white;
+.feature-pills{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.pill{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:100px;padding:7px 16px;
+  font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:7px;
+}
+.pill em{color:var(--cyan);font-style:normal}
+
+/* ─────────────────────────────────
+   SEARCHING
+───────────────────────────────── */
+#s-searching{gap:28px}
+
+.search-ring{
+  width:90px;height:90px;
   border-radius:50%;
+  border:3px solid var(--border2);
+  border-top-color:var(--cyan);
+  border-right-color:var(--pink);
+  animation:spin 1.2s linear infinite;
+  position:relative;
+}
+.search-ring::after{
+  content:'';position:absolute;
+  inset:10px;border-radius:50%;
+  border:2px solid var(--border);
+  border-bottom-color:var(--lime);
+  animation:spin .8s linear infinite reverse;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.search-text{
+  text-align:center;
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--muted);
+  line-height:2;
+}
+.search-text strong{
+  display:block;font-family:'Outfit',sans-serif;
+  font-size:22px;font-weight:700;color:var(--text);
+  margin-bottom:4px;
+}
+.dots::after{
+  content:'';animation:dotAnim 1.5s steps(3,end) infinite;
+}
+@keyframes dotAnim{
+  0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}
+}
+
+.cancel-btn{
+  padding:10px 28px;
+  background:transparent;border:1px solid var(--border2);
+  border-radius:10px;color:var(--muted);
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;transition:all .2s;
+}
+.cancel-btn:hover{border-color:var(--pink);color:var(--pink);background:rgba(255,45,120,.06)}
+
+/* ─────────────────────────────────
+   CALL SCREEN
+───────────────────────────────── */
+#s-call{
+  flex-direction:column;
+  background:var(--bg);
+  display:none;
+  align-items:stretch;
+  justify-content:flex-start;
+  padding:0;
+}
+#s-call.show{display:flex}
+
+/* top bar */
+.call-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;
+  background:rgba(7,8,12,.92);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(24px);
+  flex-shrink:0;z-index:20;
+}
+.call-logo{
+  font-family:'Bebas Neue',sans-serif;font-size:28px;
+  background:linear-gradient(90deg,var(--cyan),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.call-meta{
+  display:flex;align-items:center;gap:14px;
+}
+.timer-chip{
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:var(--lime);background:rgba(168,255,62,.07);
+  border:1px solid rgba(168,255,62,.2);
+  padding:5px 14px;border-radius:100px;
+}
+.conn-chip{
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;color:var(--muted);
+  font-family:'JetBrains Mono',monospace;
+}
+.live-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--lime);
+  box-shadow:0 0 8px var(--lime);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.75)}}
+
+.skip-btn{
+  padding:8px 18px;font-size:12px;font-weight:600;
+  background:transparent;border:1px solid var(--border2);
+  border-radius:8px;color:var(--muted);cursor:pointer;
+  transition:all .2s;font-family:'Outfit',sans-serif;
+}
+.skip-btn:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,184,48,.06)}
+
+/* video layout */
+.video-stage{
+  flex:1;display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;padding:6px;
+  min-height:0;position:relative;
+}
+
+.vid-box{
+  border-radius:14px;overflow:hidden;
+  background:var(--s2);border:1px solid var(--border);
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  min-height:0;
+}
+.vid-box video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.vid-box canvas.mock{
+  position:absolute;inset:0;width:100%;height:100%;
+}
+
+.vid-label{
+  position:absolute;bottom:12px;left:12px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.1);
+  padding:4px 10px;border-radius:6px;
+  backdrop-filter:blur(8px);
+  display:flex;align-items:center;gap:6px;z-index:2;
+}
+.vdot{width:6px;height:6px;border-radius:50%}
+.vdot-you{background:var(--pink);box-shadow:0 0 8px var(--pink)}
+.vdot-them{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+.vid-overlay-icon{
+  font-size:64px;position:absolute;
+  animation:float 3s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+/* emoji reaction float */
+.emoji-float{
+  position:fixed;font-size:36px;
+  pointer-events:none;z-index:100;
+  animation:emojiRise 1.8s ease forwards;
+}
+@keyframes emojiRise{
+  0%{opacity:1;transform:translateY(0) scale(1)}
+  100%{opacity:0;transform:translateY(-140px) scale(1.4)}
+}
+
+/* controls */
+.controls-bar{
+  display:flex;align-items:center;justify-content:center;
+  gap:10px;padding:12px 20px;
+  background:rgba(7,8,12,.96);
+  border-top:1px solid var(--border);
+  flex-shrink:0;z-index:20;flex-wrap:wrap;
+}
+
+.ctrl{
+  width:50px;height:50px;border-radius:13px;
+  border:1px solid var(--border2);
+  background:var(--s2);color:var(--text);
+  font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;position:relative;
+}
+.ctrl:hover{border-color:var(--muted2);background:var(--s3);transform:translateY(-2px)}
+.ctrl.on{border-color:var(--cyan);background:rgba(0,229,255,.1);color:var(--cyan)}
+.ctrl.off{border-color:var(--pink);background:rgba(255,45,120,.1);color:var(--pink)}
+.ctrl.end{
+  background:var(--pink);color:#fff;border:none;
+  width:58px;height:58px;font-size:22px;
+  box-shadow:0 4px 24px rgba(255,45,120,.4);
+}
+.ctrl.end:hover{background:#e0155f;box-shadow:0 6px 32px rgba(255,45,120,.6)}
+
+.ctrl-sep{width:1px;height:38px;background:var(--border);margin:0 4px}
+
+.game-ctrl{
+  padding:0 16px;width:auto;
+  font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;
+  gap:7px;
+  border-style:dashed;
+}
+.game-ctrl:hover{border-color:var(--lime);color:var(--lime);background:rgba(168,255,62,.07)}
+.game-ctrl.active{border-color:var(--lime);color:var(--lime);background:rgba(168,255,62,.1);border-style:solid}
+
+/* ─────────────────────────────────
+   QUIZ OVERLAY
+───────────────────────────────── */
+#quiz-overlay{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  height:65%;
+  z-index:50;
+
+  
+
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding:20px;
+}
+
+#quiz-overlay.hidden{
+  transform:translateY(100%);
+}
+
+#quiz-overlay.show{
+  transform:translateY(0);
+}
+
+.quiz-box{
+  width:100%;max-width:680px;
+  background:var(--s1);
+  border:1px solid var(--border2);
+  border-radius:20px;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.8);
+}
+
+.quiz-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 24px;
+  background:var(--s2);
+  border-bottom:1px solid var(--border);
+}
+.quiz-title{
+  font-family:'Bebas Neue',sans-serif;font-size:26px;
+  color:var(--lime);letter-spacing:1px;
+}
+.quiz-scores{display:flex;gap:12px}
+.q-score{
+  background:var(--s3);border:1px solid var(--border2);
+  border-radius:10px;padding:6px 16px;text-align:center;min-width:64px;
+}
+.q-score-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
+.q-score-num{
+  font-family:'Bebas Neue',sans-serif;font-size:26px;
+  margin-top:1px;
+}
+.q-score.you .q-score-num{color:var(--pink)}
+.q-score.them .q-score-num{color:var(--cyan)}
+
+.quiz-body{padding:24px}
+
+.q-progress{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+.q-num-lbl{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--muted);text-transform:uppercase;letter-spacing:2px;
+}
+.q-timer-wrap{
+  display:flex;align-items:center;gap:8px;
+}
+.q-timer-num{
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:var(--lime);font-weight:600;
+  min-width:24px;text-align:right;
+}
+.q-bar{
+  width:140px;height:6px;background:var(--s3);border-radius:100px;overflow:hidden;
+}
+.q-bar-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--lime),var(--cyan));
+  border-radius:100px;
+  transition:width .15s linear;
+}
+
+.q-cat{
+  display:inline-block;
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  color:var(--cyan);background:rgba(0,229,255,.08);
+  border:1px solid rgba(0,229,255,.2);
+  padding:3px 9px;border-radius:5px;text-transform:uppercase;letter-spacing:1px;
+  margin-bottom:12px;
+}
+
+.q-text{
+  font-size:19px;font-weight:600;line-height:1.5;
+  color:var(--text);margin-bottom:20px;
+}
+
+.q-options{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+.q-opt{
+  background:var(--s3);border:1px solid var(--border2);
+  border-radius:12px;padding:14px 16px;
+  font-family:'Outfit',sans-serif;font-size:14px;font-weight:500;
+  color:var(--text);cursor:pointer;
+  transition:all .18s;
+  display:flex;align-items:center;gap:10px;
+  text-align:left;
+}
+.q-opt:hover:not(:disabled){
+  border-color:var(--cyan);background:rgba(0,229,255,.07);
+  transform:translateY(-1px);
+}
+.q-opt.correct{border-color:var(--lime)!important;background:rgba(168,255,62,.1)!important;color:var(--lime)}
+.q-opt.wrong{border-color:var(--pink)!important;background:rgba(255,45,120,.1)!important;color:var(--pink)}
+.q-opt:disabled{cursor:default}
+
+.q-key{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--s2);border:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  flex-shrink:0;transition:background .15s,border-color .15s;
+}
+.q-opt.correct .q-key{background:var(--lime);color:#000;border-color:var(--lime)}
+.q-opt.wrong .q-key{background:var(--pink);border-color:var(--pink)}
+
+.q-opt.on{
+  border-color: var(--amber) !important;
+  background: rgba(255,184,48,.15) !important;
+  box-shadow: 0 0 0 2px var(--amber) inset;
+}
+
+.q-feedback{
+  margin-top:16px;padding:13px 18px;
+  border-radius:12px;font-weight:600;font-size:15px;
+  text-align:center;display:none;
+  animation:fadeUp .25s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.q-feedback.correct{background:rgba(168,255,62,.08);border:1px solid rgba(168,255,62,.25);color:var(--lime)}
+.q-feedback.wrong{background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.25);color:var(--pink)}
+.q-feedback.info{background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);color:var(--cyan)}
+
+.q-opponent-status{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--muted);text-align:center;margin-top:10px;min-height:18px;
+}
+
+/* quiz waiting / end screens */
+.quiz-waiting,.quiz-end{
+  padding:48px 24px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+}
+.quiz-waiting-ring{
+  width:60px;height:60px;border-radius:50%;
+  border:3px solid var(--border2);
+  border-top-color:var(--lime);
   animation:spin 1s linear infinite;
-  margin:auto;
+}
+.quiz-end-title{
+  font-family:'Bebas Neue',sans-serif;font-size:56px;
+  background:linear-gradient(135deg,var(--lime),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.quiz-end-scores{
+  display:flex;gap:16px;justify-content:center;flex-wrap:wrap;
+}
+.end-score-card{
+  background:var(--s2);border:1px solid var(--border2);
+  border-radius:14px;padding:16px 28px;text-align:center;
+}
+.end-score-card-lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
+.end-score-card-num{font-family:'Bebas Neue',sans-serif;font-size:52px}
+.end-score-card.you .end-score-card-num{color:var(--pink)}
+.end-score-card.them .end-score-card-num{color:var(--cyan)}
+
+/* ─────────────────────────────────
+   TOAST
+───────────────────────────────── */
+#toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%);
+  z-index:200;pointer-events:none;
+}
+.toast-item{
+  padding:10px 22px;border-radius:12px;
+  font-weight:600;font-size:13px;
+  background:var(--s2);border:1px solid var(--border2);
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  text-align:center;
+  animation:toastIn .3s ease;
+  white-space:nowrap;
+}
+.toast-item.info{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.07)}
+.toast-item.good{border-color:var(--lime);color:var(--lime);background:rgba(168,255,62,.07)}
+.toast-item.bad{border-color:var(--pink);color:var(--pink);background:rgba(255,45,120,.07)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─────────────────────────────────
+   READY OVERLAY (both-ready gate)
+───────────────────────────────── */
+#ready-overlay{
+  position:fixed;inset:0;z-index:45;
+  background:rgba(7,8,12,.88);backdrop-filter:blur(10px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:20px;
+}
+#ready-overlay.hidden{display:none}
+.ready-title{
+  font-family:'Bebas Neue',sans-serif;font-size:54px;
+  color:var(--lime);letter-spacing:2px;
+  text-align:center;
+}
+.ready-sub{font-size:14px;color:var(--muted);text-align:center}
+.ready-btn{
+  padding:16px 56px;
+  background:var(--lime);color:#000;
+  font-weight:700;font-size:16px;font-family:'Outfit',sans-serif;
+  border:none;border-radius:13px;cursor:pointer;
+  box-shadow:0 6px 32px rgba(168,255,62,.35);
+  transition:all .2s;letter-spacing:.3px;
+}
+.ready-btn:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(168,255,62,.5)}
+.ready-btn:disabled{background:var(--muted2);color:var(--muted);cursor:not-allowed;box-shadow:none;transform:none}
+.ready-status{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
+  text-align:center;line-height:2;
 }
 
-@keyframes spin {
-  0%{transform:rotate(0deg);}
-  100%{transform:rotate(360deg);}
+/* ─────────────────────────────────
+  RESPONSIVE
+───────────────────────────────── */
+@media(max-width:600px){
+  .video-stage{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+  .q-options{grid-template-columns:1fr}
+  .quiz-scores{gap:8px}
+  .controls-bar{gap:7px}
+  .ctrl{width:44px;height:44px;font-size:18px;border-radius:11px}
+  .ctrl.end{width:52px;height:52px}
+  .game-ctrl{padding:0 12px;font-size:12px}
+  .q-text{font-size:16px}
+  .quiz-end-title{font-size:42px}
 }
-
-
-button {
-  transition: all 0.2s ease;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-} 
-
-#options button {
-  transition: background 0.3s ease, transform 0.2s ease;
-}
-
 </style>
 </head>
-
-<audio id="startSound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
-<audio id="correctSound" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
-<audio id="wrongSound" src="https://assets.mixkit.co/active_storage/sfx/2220/2220-preview.mp3"></audio>
-<audio id="winSound" src="https://assets.mixkit.co/active_storage/sfx/2761/2761-preview.mp3"></audio>
-
 <body>
 
-<div class="video-box">
-<h3>You</h3>
-<video id="localVideo" autoplay muted playsinline></video>
-</div>
-
-<div class="quiz-box">
-
-  <h2>🧠 Quiz Battle</h2>
-
-<p id="questionText">Waiting for question...</p>
-
-
-<button id="readyBtn" onclick="sendReady()" 
-style="background:#00c853;font-weight:bold;">
-READY
-</button>
-
-<p id="readyStatus"></p>
-
-
-<div id="options">
-  <button id="btn0" onclick="sendAnswer(0)">Option 1</button>
-  <button id="btn1" onclick="sendAnswer(1)">Option 2</button>
-  <button id="btn2" onclick="sendAnswer(2)">Option 3</button>
-  <button id="btn3" onclick="sendAnswer(3)">Option 4</button>
-</div>
-
-<p id="timer">Time: 20</p>
-<div style="background:#444;height:8px;border-radius:5px;margin-top:10px;">
-  <div id="progressBar" 
-  style="height:8px;width:100%;background:#00c853;border-radius:5px;transition:width 0.2s linear;">
+<!-- ════ LANDING ════ -->
+<div class="screen" id="s-landing">
+  <div class="logo-mark">Social Horaa</div>
+  <div class="tagline">// random video chat · quiz battle · real connection</div>
+  <button class="start-btn" id="startBtn" onclick="goSearch()">
+    Start Chatting →
+  </button>
+  <div class="feature-pills">
+    <div class="pill"><em>📹</em> Live Video</div>
+    <div class="pill"><em>🎯</em> Quiz Battle</div>
+    <div class="pill"><em>⚡</em> Instant Match</div>
+    <div class="pill"><em>🎲</em> Totally Random</div>
   </div>
 </div>
-<p id="score">Your Score: 0</p>
-<p id="opponentStatus"></p>
 
-<h2>🏆 Social Horaa</h2>
-<p id="status">Searching for stranger...</p>
-<div id="loader"><div class="spinner"></div></div>
-
-<button class="next-btn" onclick="nextMatch()">Next Stranger</button>
+<!-- ════ SEARCHING ════ -->
+<div class="screen hidden" id="s-searching">
+  <div class="search-ring"></div>
+  <div class="search-text">
+    <strong>Finding your match<span class="dots"></span></strong>
+    Searching through active players worldwide
+  </div>
+  <button class="cancel-btn" onclick="cancelSearch()">Cancel</button>
 </div>
 
-<div class="video-box">
-<h3>Stranger</h3>
-<video id="remoteVideo" autoplay playsinline></video>
+<!-- ════ CALL SCREEN ════ -->
+<div class="screen hidden" id="s-call">
+  <div class="call-topbar">
+    <div class="call-logo">SocialHoraa</div>
+    <div class="call-meta">
+      <div class="timer-chip" id="callTimer">00:00</div>
+      <div class="conn-chip"><div class="live-dot"></div><span id="connLabel">Live</span></div>
+    </div>
+    <button class="skip-btn" onclick="skipStranger()">Next →</button>
+  </div>
+
+  <div class="video-stage">
+    <div class="vid-box" id="box-them">
+      <div class="vid-overlay-icon" id="themIcon">👤</div>
+      <canvas class="mock" id="mockThem"></canvas>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="vid-label"><div class="vdot vdot-them"></div>Stranger</div>
+    </div>
+    <div class="vid-box" id="box-you">
+      <div class="vid-overlay-icon">😊</div>
+      <canvas class="mock" id="mockYou"></canvas>
+      <video id="localVideo" autoplay playsinline muted></video>
+      <div class="vid-label"><div class="vdot vdot-you"></div>You</div>
+    </div>
+  </div>
+
+  <div class="controls-bar">
+    <button class="ctrl" id="btnMic" onclick="toggleMic()" title="Mic">🎙️</button>
+    <button class="ctrl" id="btnCam" onclick="toggleCam()" title="Camera">📷</button>
+    <div class="ctrl-sep"></div>
+    <button class="ctrl" style="font-size:22px" onclick="sendReaction('👍')">👍</button>
+    <button class="ctrl" style="font-size:22px" onclick="sendReaction('😂')">😂</button>
+    <button class="ctrl" style="font-size:22px" onclick="sendReaction('🔥')">🔥</button>
+    <div class="ctrl-sep"></div>
+    <button class="ctrl game-ctrl" id="btnQuiz" onclick="requestQuiz()">
+      🎯 Quiz Battle
+    </button>
+    <div class="ctrl-sep"></div>
+    <button class="ctrl end" onclick="endCall()">📵</button>
+  </div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
+<!-- ════ READY OVERLAY ════ -->
+<div id="ready-overlay" class="hidden">
+  <div class="ready-title">Quiz Battle!</div>
+  <div class="ready-sub">Press READY to start a 7-question battle against your stranger</div>
+  <button class="ready-btn" id="readyBtn" onclick="pressReady()">I'm Ready!</button>
+  <div class="ready-status" id="readyStatus">Waiting for both players to be ready…</div>
+  <button class="cancel-btn" onclick="cancelQuiz()">Cancel</button>
+</div>
+
+<!-- ════ QUIZ OVERLAY ════ -->
+<div id="quiz-overlay" class="hidden">
+  <div class="quiz-box" id="quizBox">
+    <!-- filled dynamically -->
+  </div>
+</div>
+
+<!-- ════ TOAST ════ -->
+<div id="toast"></div>
+
 <script>
+/* ══════════════════════════════════════
+   SOCKET + STATE
+══════════════════════════════════════ */
+const socket = io();
 
-const socket = io({
-  transports: ["websocket"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 20000
-});
-
-
-/* ---------------- sound  ---------------- */
-const startSound = document.getElementById("startSound");
-const correctSound = document.getElementById("correctSound");
-const wrongSound = document.getElementById("wrongSound");
-const winSound = document.getElementById("winSound");
-
-
-
-
-
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-const statusText = document.getElementById("status");
-const loader = document.getElementById("loader");
-
-let peer = null;
 let localStream = null;
-let reconnecting = false;
+let peerConn = null;
+let isInitiator = false;
+let micEnabled = true;
+let camEnabled = true;
+let callTimerInterval = null;
+let callSeconds = 0;
+let mockAnimFrames = {};
 
+/* ══════════════════════════════════════
+   SCREENS
+══════════════════════════════════════ */
+function showScreen(id) {
+  ['s-landing', 's-searching'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+  const call = document.getElementById('s-call');
+  if (id === 's-call') {
+    call.classList.remove('hidden');
+    call.classList.add('show');
+  } else {
+    call.classList.remove('show');
+    call.classList.add('hidden');
+  }
+}
 
-const config = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: [
-        "turn:openrelay.metered.ca:80?transport=tcp",
-        "turn:openrelay.metered.ca:443?transport=tcp"
-      ],
-      username: "openrelayproject",
-      credential: "openrelayproject"
+/* ══════════════════════════════════════
+   LANDING → SEARCHING
+══════════════════════════════════════ */
+function goSearch() {
+  showScreen('s-searching');
+}
+
+function cancelSearch() {
+  socket.emit('next-stranger');
+  showScreen('s-landing');
+}
+
+/* ══════════════════════════════════════
+   CALL TIMER
+══════════════════════════════════════ */
+function startCallTimer() {
+  callSeconds = 0;
+  clearInterval(callTimerInterval);
+  callTimerInterval = setInterval(() => {
+    callSeconds++;
+    const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+    const s = String(callSeconds % 60).padStart(2, '0');
+    document.getElementById('callTimer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+function stopCallTimer() {
+  clearInterval(callTimerInterval);
+  document.getElementById('callTimer').textContent = '00:00';
+}
+
+/* ══════════════════════════════════════
+   MOCK VIDEO ANIMATIONS
+══════════════════════════════════════ */
+function startMockYou() {
+  const c = document.getElementById('mockYou');
+  const ctx = c.getContext('2d');
+  let t = 0;
+  function draw() {
+    const w = c.width, h = c.height;
+    ctx.fillStyle = `hsl(${(t * 0.3) % 360},25%,14%)`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.font = `${Math.min(w, h) * 0.25}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('😊', w / 2, h / 2);
+    t++;
+    mockAnimFrames.you = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function startMockThem() {
+  const c = document.getElementById('mockThem');
+  const ctx = c.getContext('2d');
+  const emojis = ['😎', '🤩', '🥳', '😄', '😏', '🤓'];
+  const avatar = emojis[Math.floor(Math.random() * emojis.length)];
+  let t = 0;
+  function draw() {
+    const w = c.width, h = c.height;
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h));
+    grad.addColorStop(0, '#141528');
+    grad.addColorStop(1, '#07080c');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    // orbiting particle
+    for (let i = 0; i < 5; i++) {
+      const x = w / 2 + Math.sin(t * 0.012 + i * 1.26) * w * 0.35;
+      const y = h / 2 + Math.cos(t * 0.009 + i * 1.1) * h * 0.3;
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,229,255,${0.08 + Math.sin(t * 0.02 + i) * 0.06})`;
+      ctx.fill();
     }
+    ctx.font = `${Math.min(w, h) * 0.22}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(avatar, w / 2, h / 2);
+    t++;
+    mockAnimFrames.them = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function sizeCanvas(canvasId) {
+  const c = document.getElementById(canvasId);
+  const box = c.parentElement.getBoundingClientRect();
+  c.width = Math.max(box.width, 10);
+  c.height = Math.max(box.height, 10);
+}
+
+/* ══════════════════════════════════════
+   WEBRTC
+══════════════════════════════════════ */
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
   ]
 };
 
-async function startCamera() {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true
-    });
-    localVideo.srcObject = localStream;
+async function initLocalMedia() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const lv = document.getElementById('localVideo');
+    lv.srcObject = localStream;
+    lv.style.display = 'block';
+    document.getElementById('mockYou').style.display = 'none';
+    const [videoTrack] = localStream.getVideoTracks();
+    const [audioTrack] = localStream.getAudioTracks();
+    camEnabled = videoTrack?.enabled ?? false;
+    micEnabled = audioTrack?.enabled ?? false;
+  } catch (e) {
+    console.warn('Media access denied, using mock video.');
+    startMockYou();
   }
 }
 
-function createPeer() {
+function createPeer(initiator) {
+  if (peerConn) { peerConn.close(); }
+  peerConn = new RTCPeerConnection(ICE_SERVERS);
 
-  peer = new RTCPeerConnection(config);
+  if (localStream) {
+    localStream.getTracks().forEach(t => peerConn.addTrack(t, localStream));
+  }
 
-  localStream.getTracks().forEach(track => {
-    peer.addTrack(track, localStream);
+  peerConn.ontrack = e => {
+    const rv = document.getElementById('remoteVideo');
+    rv.srcObject = e.streams[0];
+    rv.style.display = 'block';
+    document.getElementById('mockThem').style.display = 'none';
+    document.getElementById('themIcon').style.display = 'none';
+  };
+
+  peerConn.onicecandidate = e => {
+    if (e.candidate) socket.emit('signal', { type: 'ice', candidate: e.candidate });
+  };
+
+  peerConn.onconnectionstatechange = () => {
+    const state = peerConn?.connectionState;
+    if (state === 'connected') {
+      document.getElementById('connLabel').textContent = 'Connected';
+      toast('🎉 Stranger connected!', 'good');
+    }
+    if (state === 'failed' || state === 'disconnected') {
+      document.getElementById('connLabel').textContent = 'Lost signal';
+    }
+  };
+
+  if (initiator) {
+    peerConn.onnegotiationneeded = async () => {
+      try {
+        const offer = await peerConn.createOffer();
+        await peerConn.setLocalDescription(offer);
+        socket.emit('signal', { type: 'offer', sdp: peerConn.localDescription });
+      } catch (e) { console.error(e); }
+    };
+  }
+}
+
+async function handleSignal(data) {
+  if (!peerConn) return;
+  if (data.type === 'offer') {
+    await peerConn.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const answer = await peerConn.createAnswer();
+    await peerConn.setLocalDescription(answer);
+    socket.emit('signal', { type: 'answer', sdp: peerConn.localDescription });
+  } else if (data.type === 'answer') {
+    await peerConn.setRemoteDescription(new RTCSessionDescription(data.sdp));
+  } else if (data.type === 'ice') {
+    await peerConn.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+  }
+}
+
+/* ══════════════════════════════════════
+   CONTROLS
+══════════════════════════════════════ */
+function toggleMic() {
+  if (!localStream) return;
+  const track = localStream.getAudioTracks()[0];
+  if (!track) return;
+  micEnabled = !micEnabled;
+  track.enabled = micEnabled;
+  const btn = document.getElementById('btnMic');
+  btn.textContent = micEnabled ? '🎙️' : '🔇';
+  btn.classList.toggle('off', !micEnabled);
+  toast(micEnabled ? '🎙️ Mic on' : '🔇 Mic muted', 'info');
+}
+
+function toggleCam() {
+  if (!localStream) return;
+  const track = localStream.getVideoTracks()[0];
+  if (!track) return;
+  camEnabled = !camEnabled;
+  track.enabled = camEnabled;
+  const btn = document.getElementById('btnCam');
+  btn.textContent = camEnabled ? '📷' : '🚫';
+  btn.classList.toggle('off', !camEnabled);
+  const lv = document.getElementById('localVideo');
+  lv.style.opacity = camEnabled ? '1' : '0.3';
+  toast(camEnabled ? '📷 Camera on' : '🚫 Camera off', 'info');
+}
+
+function sendReaction(emoji) {
+  const el = document.createElement('div');
+  el.className = 'emoji-float';
+  el.textContent = emoji;
+  el.style.left = (20 + Math.random() * 60) + '%';
+  el.style.bottom = '80px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+  toast(emoji + ' Sent!', 'info');
+}
+
+function skipStranger() {
+  cleanupCall();
+  socket.emit('next-stranger');
+  showScreen('s-searching');
+  toast('🔄 Finding next stranger…', 'info');
+}
+
+function endCall() {
+  cleanupCall();
+  socket.emit('next-stranger');
+  showScreen('s-landing');
+}
+
+function cleanupCall() {
+  stopCallTimer();
+  closeQuiz();
+  closeReady();
+  if (peerConn) { peerConn.close(); peerConn = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  document.getElementById('localVideo').style.display = 'none';
+  document.getElementById('remoteVideo').style.display = 'none';
+  document.getElementById('remoteVideo').srcObject = null;
+  document.getElementById('mockThem').style.display = 'block';
+  document.getElementById('themIcon').style.display = 'block';
+}
+
+/* ══════════════════════════════════════
+   QUIZ FLOW
+══════════════════════════════════════ */
+let quizScoreYou = 0;
+let quizScoreThem = 0;
+let qTimerCountdown = null;
+let quizActive = false;
+
+function requestQuiz() {
+  openReady();
+}
+
+function openReady() {
+  document.getElementById('ready-overlay').classList.remove('hidden');
+  document.getElementById('readyBtn').disabled = false;
+  document.getElementById('readyStatus').textContent = 'Waiting for both players to be ready…';
+}
+function closeReady() {
+  document.getElementById('ready-overlay').classList.add('hidden');
+}
+
+function pressReady() {
+  document.getElementById('readyBtn').disabled = true;
+  document.getElementById('readyStatus').textContent = '✅ You are ready! Waiting for stranger…';
+  socket.emit('player-ready');
+}
+
+function cancelQuiz() {
+  closeReady();
+}
+
+/* ── question rendering ── */
+function renderQuestion(data) {
+  quizActive = true;
+  closeReady();
+  const qOverlay = document.getElementById('quiz-overlay');
+  qOverlay.classList.remove('hidden');
+  qOverlay.classList.add('show');
+
+  const { question, options, endTime, qNum, qTotal, category } = data;
+  const keys = ['A', 'B', 'C', 'D'];
+
+  document.getElementById('quizBox').innerHTML = `
+    <div class="quiz-topbar">
+  <div class="quiz-title">🎯 Quiz Battle</div>
+  <button class="cancel-btn" onclick="closeQuiz()">✕ Close</button>
+      <div class="quiz-scores">
+        <div class="q-score you">
+          <div class="q-score-lbl">You</div>
+          <div class="q-score-num" id="qs-you">${quizScoreYou}</div>
+        </div>
+        <div class="q-score them">
+          <div class="q-score-lbl">Them</div>
+          <div class="q-score-num" id="qs-them">${quizScoreThem}</div>
+        </div>
+      </div>
+    </div>
+    <div class="quiz-body">
+      <div class="q-progress">
+        <div class="q-num-lbl" id="qNum">Question ${qNum || '?'} of ${qTotal || '7'}</div>
+        <div class="q-timer-wrap">
+          <div class="q-timer-num" id="qTimerNum">20</div>
+          <div class="q-bar"><div class="q-bar-fill" id="qBarFill" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div class="q-cat" id="qCat">${category || 'Trivia'}</div>
+      <div class="q-text">${question}</div>
+      <div class="q-options" id="qOptions">
+        ${options.map((opt, i) => `
+          <button class="q-opt" onclick="selectOpt(${i},this)" id="qopt-${i}">
+            <div class="q-key">${keys[i]}</div>
+            <span>${opt}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="q-feedback" id="qFeedback"></div>
+      <div class="q-opponent-status" id="qOppStatus"></div>
+    </div>
+  `;
+
+  // Countdown timer from endTime
+  clearInterval(qTimerCountdown);
+  function tick() {
+    const left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    const el = document.getElementById('qTimerNum');
+    const bar = document.getElementById('qBarFill');
+    if (el) el.textContent = left;
+    if (bar) bar.style.width = (left / 20 * 100) + '%';
+    if (left <= 5 && el) el.style.color = 'var(--pink)';
+    if (left <= 0) {
+  clearInterval(qTimerCountdown);
+  quizActive = false;
+}
+  }
+  tick();
+  qTimerCountdown = setInterval(tick, 200);
+}
+
+function selectOpt(idx, btn) {
+
+  if (!quizActive) return;
+
+  // disable further clicks but DO NOT stop timer
+  document.querySelectorAll('.q-opt').forEach(b => {
+    b.disabled = true;
   });
 
-  peer.ontrack = (e) => {
-    remoteVideo.srcObject = e.streams[0];
-  };
+  // instant highlight (yellow border)
+  btn.classList.add('on');
 
-  peer.onicecandidate = (e) => {
-    if (e.candidate) {
-      socket.emit("signal", e.candidate);
-    }
-  };
-
-  peer.oniceconnectionstatechange = () => {
-
-    console.log("ICE:", peer.iceConnectionState);
-
-    if (peer.iceConnectionState === "checking") {
-      statusText.innerText = "Connecting...";
-      loader.style.display = "block";
-    }
-
-    if (peer.iceConnectionState === "connected") {
-      statusText.innerText = "Connected 🎉";
-      loader.style.display = "none";
-    }
-
-    if (peer.iceConnectionState === "failed") {
-      console.log("ICE Restarting...");
-      peer.restartIce();
-    }
-
-    if (peer.iceConnectionState === "disconnected") {
-      statusText.innerText = "Reconnecting...";
-      loader.style.display = "block";
-      safeReconnect();
-    }
-  };
+  socket.emit('quiz-answer', idx);
 }
 
-function destroyPeer() {
-  if (peer) {
-    peer.ontrack = null;
-    peer.onicecandidate = null;
-    peer.close();
-    peer = null;
-  }
-  remoteVideo.srcObject = null;
-}
+function renderResult(data) {
 
-function safeReconnect() {
+  const { correctIndex, yourAnswer, score } = data;
 
-  if (reconnecting) return;
-  reconnecting = true;
+  quizScoreYou = score;
 
-  destroyPeer();
+  const qs = document.getElementById('qs-you');
+  if (qs) qs.textContent = score;
 
-  setTimeout(() => {
-    socket.emit("next-stranger");
-    reconnecting = false;
-  }, 1000);
-}
+  const opts = document.querySelectorAll('.q-opt');
 
-/* ---------------- SOCKET EVENTS ---------------- */
+  opts.forEach((b, i) => {
+    b.disabled = true;
 
-socket.on("connect", () => {
-  console.log("Socket connected:", socket.id);
-  statusText.innerText = "Searching...";
-  loader.style.display = "block";
-});
+    // show correct answer green
+    if (i === correctIndex) {
+      b.classList.add('correct');
+    }
 
-socket.on("disconnect", () => {
-  console.log("Socket disconnected");
-  statusText.innerText = "Reconnecting to server...";
-  loader.style.display = "block";
-});
+    // show wrong answer red
+    if (yourAnswer !== null && i === yourAnswer && i !== correctIndex) {
+      b.classList.add('wrong');
+    }
+  });
 
-socket.on("reconnect", () => {
-  console.log("Socket reconnected");
-  statusText.innerText = "Searching again...";
-  loader.style.display = "block";
-  socket.emit("next-stranger");
-});
+  const fb = document.getElementById('qFeedback');
 
-socket.on("matched", async (data) => {
+  if (fb) {
+    fb.style.display = 'block';
 
-  await startCamera();
-  createPeer();
-
-  if (data.initiator) {
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
-    socket.emit("signal", offer);
-  }
-});
-
-socket.on("signal", async (data) => {
-  try {
-
-    if (!peer) createPeer();
-
-    if (data.type === "offer") {
-
-      await peer.setRemoteDescription(new RTCSessionDescription(data));
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
-      socket.emit("signal", answer);
-
-    } else if (data.type === "answer") {
-
-      await peer.setRemoteDescription(new RTCSessionDescription(data));
-
+    if (yourAnswer === correctIndex) {
+      fb.className = 'q-feedback correct';
+      fb.textContent = '✅ Correct! +5 Points';
     } else {
-
-      await peer.addIceCandidate(new RTCIceCandidate(data));
-    }
-
-  } catch (err) {
-    console.log("Signal error:", err);
-  }
-});
-
-socket.on("partner-disconnected", () => {
-  statusText.innerText = "Stranger left. Searching again...";
-  loader.style.display = "block";
-  destroyPeer();
-
-  setTimeout(() => {
-    socket.emit("next-stranger");
-  }, 1000);
-
-  isReady = false;
-document.getElementById("readyBtn").disabled = false;
-document.getElementById("readyBtn").innerText = "READY";
-document.getElementById("readyBtn").style.display = "block";
-
-
-});
-
-/* ---------------- QUIZ SYSTEM ---------------- */
-let isReady = false;
-let timerInterval = null;
-let timeLeft = 10;
-let answered = false;
-let selectedIndex = null;
-
-socket.on("opponent-answered", () => {
-  document.getElementById("opponentStatus").innerText =
-    "Opponent has answered!";
-});
-
-
-
-socket.on("quiz-question", (data) => {
-  startSound.currentTime = 0;
-startSound.play().catch(()=>{});
-  answered = false;
-  selectedIndex = null;
-document.getElementById("opponentStatus").innerText = "";
-  document.getElementById("questionText").innerText = data.question;
-  answered = false;
-selectedIndex = null;
-
- data.options.forEach((opt, i) => {
-
-  const btn = document.getElementById("btn" + i);
-
-  btn.innerText = opt;
-  btn.disabled = false;
-
-  // FULL RESET
-  btn.style.background = "#6a5acd";
-  btn.style.boxShadow = "none";
-  btn.style.transform = "scale(1)";
-});
-
-  startSyncedTimer(data.endTime);
-});
-
-function sendReady() {
-
-  if (isReady) return;
-
-  isReady = true;
-
-  document.getElementById("readyBtn").disabled = true;
-  document.getElementById("readyBtn").innerText = "Waiting for opponent...";
-  
-  socket.emit("player-ready");
-}
-
-
-let currentDuration = 20000;
-
-function startSyncedTimer(endTime) {
-
-  clearInterval(timerInterval);
-
-  currentDuration = endTime - Date.now();
-
-  function updateTimer() {
-
-    const remainingMs = endTime - Date.now();
-    const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
-
-    document.getElementById("timer").innerText =
-      "Time: " + remaining;
-
-    const percentage = Math.max(
-      0,
-      (remainingMs / currentDuration) * 100
-    );
-
-    document.getElementById("progressBar").style.width =
-      percentage + "%";
-
-    if (remainingMs <= 0) {
-      clearInterval(timerInterval);
-      disableOptions();
+      fb.className = 'q-feedback wrong';
+      fb.textContent = '❌ Wrong Answer';
     }
   }
-
-  updateTimer();
-  timerInterval = setInterval(updateTimer, 200);
 }
 
-function sendAnswer(index) {
-
-  if (answered) return;
-
-  answered = true;
-  selectedIndex = index;
-
-  highlightSelected(index);
-
-  socket.emit("quiz-answer", index);
-
-  disableOptions();
+function renderOpponentAnswered() {
+  const el = document.getElementById('qOppStatus');
+  if (el) el.textContent = '⚡ Stranger answered!';
 }
 
+function renderQuizEnd(data) {
 
-function disableOptions() {
-  for (let i = 0; i < 4; i++) {
-    document.getElementById("btn" + i).disabled = true;
-  }
-}
+  const { yourScore, opponentScore, winner } = data;
 
-function highlightSelected(index) {
-  document.getElementById("btn" + index).style.background = "#00c853";
-}
+  quizScoreYou = yourScore;
+  quizScoreThem = opponentScore;
 
+  clearInterval(qTimerCountdown);
+  quizActive = false;
 
-socket.on("both-ready", () => {
+  let resultText = "DRAW!";
+  let resultIcon = "";
 
-  document.getElementById("readyStatus").innerText =
-    "Both players ready! Quiz starting...";
-
-  setTimeout(() => {
-    document.getElementById("readyBtn").style.display = "none";
-  }, 1000);
-});
-
-
-
-
-socket.on("quiz-result", (data) => {
-
-  clearInterval(timerInterval);
-  disableOptions();
-
-  const correctIndex = data.correctIndex;
-
-  // Always highlight correct answer
-  const correctBtn = document.getElementById("btn" + correctIndex);
-  correctBtn.style.background = "#00c853";
-  correctBtn.style.boxShadow = "0 0 10px #00c853";
-
-  if (answered) {
-
-    if (selectedIndex === correctIndex) {
-
-      // Correct answer (keep green glow)
-      correctSound.currentTime = 0;
-      correctSound.play().catch(()=>{});
-
+  if (winner) {
+    if (winner === socket.id) {
+      resultText = "YOU WIN!";
+      resultIcon = " 🏆";
     } else {
-
-      // WRONG answer → turn your selected red
-      const wrongBtn = document.getElementById("btn" + selectedIndex);
-      wrongBtn.style.background = "#ff1744";
-      wrongBtn.style.boxShadow = "0 0 10px #ff1744";
-
-      wrongSound.currentTime = 0;
-      wrongSound.play().catch(()=>{});
+      resultText = "YOU LOSE";
+      resultIcon = " 💀";
     }
   }
 
-  document.getElementById("score").innerText =
-    "Score: " + data.score;
-});
+  document.getElementById('quizBox').innerHTML = `
+    <div class="quiz-end">
+      <div class="quiz-end-title">${resultText}${resultIcon}</div>
 
+      <div class="quiz-end-scores">
+        <div class="end-score-card you">
+          <div class="end-score-card-lbl">Your Score</div>
+          <div class="end-score-card-num">${yourScore}</div>
+        </div>
 
-socket.on("quiz-end", (data) => {
+        <div class="end-score-card them">
+          <div class="end-score-card-lbl">Stranger</div>
+          <div class="end-score-card-num">${opponentScore}</div>
+        </div>
+      </div>
 
-  if (data.winner === socket.id) {
-  winSound.currentTime = 0;
-winSound.play().catch(()=>{});
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+        <button class="ready-btn" onclick="rematch()">Rematch 🔄</button>
+        <button class="cancel-btn" onclick="closeQuiz()">Close</button>
+      </div>
+    </div>
+  `;
 }
 
-  clearInterval(timerInterval);
-
-  let message;
-
-  if (!data.winner) {
-    message = "🤝 Draw!";
-  } else if (data.winner === socket.id) {
-    message = "🏆 You Win!";
-  } else {
-    message = "😢 You Lost!";
-  }
-
-  alert(
-    message +
-    "\nYour Score: " + data.yourScore +
-    "\nOpponent Score: " + data.opponentScore
-  );
-isReady = false;
-document.getElementById("readyBtn").disabled = false;
-document.getElementById("readyBtn").innerText = "READY";
-document.getElementById("readyBtn").style.display = "block";
-  socket.emit("next-stranger");
-});
-
-
-/* ---------------- BUTTON ---------------- */
-
-function nextMatch() {
-
-  statusText.innerText = "Searching...";
-  loader.style.display = "block";
-
-  destroyPeer();
-  socket.emit("next-stranger");
+function rematch() {
+  quizScoreYou = 0; quizScoreThem = 0;
+  closeQuiz();
+  openReady();
 }
 
-startCamera();
+function closeQuiz() {
+  const qOverlay = document.getElementById('quiz-overlay');
+  qOverlay.classList.remove('show');
+  qOverlay.classList.add('hidden');
 
+  clearInterval(qTimerCountdown);
+  quizActive = false;
+
+  socket.emit("quiz-cancel");
+}
+
+/* ══════════════════════════════════════
+   SOCKET EVENTS
+══════════════════════════════════════ */
+socket.on("quiz-cancelled", () => {
+  closeQuiz();
+  closeReady();
+  toast("❌ Stranger cancelled quiz", "info");
+});
+
+socket.on('matched', async ({ initiator }) => {
+  isInitiator = initiator;
+  quizScoreYou = 0; quizScoreThem = 0;
+
+  showScreen('s-call');
+  startCallTimer();
+
+  // Size mock canvases
+  await new Promise(r => setTimeout(r, 80));
+  sizeCanvas('mockYou');
+  sizeCanvas('mockThem');
+  startMockThem();
+
+  await initLocalMedia();
+  createPeer(initiator);
+
+  toast('✅ Matched! Say hello 👋', 'good');
+});
+
+socket.on('signal', data => {
+  handleSignal(data);
+});
+
+socket.on('partner-disconnected', () => {
+  toast('👋 Stranger disconnected', 'bad');
+  cleanupCall();
+  socket.emit('next-stranger');
+  showScreen('s-searching');
+  toast('🔄 Finding new stranger…', 'info');
+});
+
+socket.on('both-ready', () => {
+  document.getElementById('readyStatus').textContent = '⚡ Both ready! Starting quiz…';
+});
+
+socket.on('quiz-question', (data) => {
+  renderQuestion(data);
+});
+
+socket.on('opponent-answered', () => {
+  renderOpponentAnswered();
+});
+
+socket.on('quiz-result', (data) => {
+  renderResult(data);
+});
+
+socket.on('quiz-end', (data) => {
+  renderQuizEnd(data);
+});
+
+/* ══════════════════════════════════════
+   TOAST
+══════════════════════════════════════ */
+let toastTimeout = null;
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast');
+  container.innerHTML = `<div class="toast-item ${type}">${msg}</div>`;
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { container.innerHTML = ''; }, 2800);
+}
+
+/* ══════════════════════════════════════
+   RESIZE
+══════════════════════════════════════ */
+window.addEventListener('resize', () => {
+  sizeCanvas('mockYou');
+  sizeCanvas('mockThem');
+});
+
+/* ══════════════════════════════════════
+   INIT
+══════════════════════════════════════ */
+showScreen('s-landing');
 </script>
-
 </body>
 </html>
